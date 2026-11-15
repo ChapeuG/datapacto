@@ -19,7 +19,7 @@ ao Data Lake:
 ```
 
 - **Ingestão:** sai um arquivo `ingestion.yml`, que o projeto
-  [`ingestion-orchestrator`](https://github.com/ChapeuG/ingestion-orchestrator) usa para ler a origem e gravar na raw.
+  orquestrador ([`packages/orchestrator`](../packages/orchestrator/README.md), no mesmo repositório) usa para ler a origem e gravar na raw.
 - **Transformação:** sempre sai o projeto `<dataset>-transformation`, no padrão das skills de transformação. Você
   escolhe a linguagem: **PySpark** (padrão) ou **Scala** (sbt).
 
@@ -34,7 +34,7 @@ compilado).
 ```powershell
 git clone https://github.com/ChapeuG/dl-gen.git
 cd dl-gen
-pip install -e ".[ui]"
+pip install -e "packages/generator[ui]"
 ```
 
 Pronto: o comando `dl-gen` passa a funcionar em qualquer pasta. (`[ui]` instala a interface; sem ela, use
@@ -71,12 +71,10 @@ O passo a passo abaixo faz a mesma coisa pela linha de comando.
 
 ### Passo 1 — Escrever o contrato da tabela
 
-O template do contrato fica no projeto do orquestrador:
+O template do contrato fica em `contracts/`, na raiz do repositório:
 
 ```powershell
-git clone https://github.com/ChapeuG/ingestion-orchestrator.git
-cd ingestion-orchestrator
-python scripts\novo_contrato.py <dataset> <tabela> --domain <area>
+python packages\orchestrator\scripts\novo_contrato.py <dataset> <tabela> --domain <area>
 ```
 
 Isso cria `contracts\<dataset>\<tabela>.odcs.yaml`. Abra o arquivo e troque tudo que está como `<...>`. Os comentários
@@ -102,7 +100,7 @@ passe o **caminho completo** do contrato:
 
 ```powershell
 cd C:\trabalho\minha-tabela
-dl-gen generate --contract C:\caminho\do\ingestion-orchestrator\contracts\<dataset>\<tabela>.odcs.yaml
+dl-gen generate --contract C:\caminho\do\dl-gen\contracts\<dataset>\<tabela>.odcs.yaml
 ```
 
 > Erro `Path '...' does not exist`: o caminho relativo não existe na pasta onde o terminal está. Use o caminho completo.
@@ -308,8 +306,8 @@ Regras que o framework aplica sozinho:
 | Problema | O que fazer |
 |---|---|
 | `Path '...' does not exist` | O caminho é relativo à pasta do terminal. Use o caminho completo do arquivo |
-| `dl-gen` não é reconhecido | Rode `pip install -e ".[ui]"` de novo na pasta do framework |
-| `dl-gen ui` diz que falta o Streamlit | `pip install -e ".[ui]"` |
+| `dl-gen` não é reconhecido | Rode `pip install -e "packages/generator[ui]"` de novo na pasta do framework |
+| `dl-gen ui` diz que falta o Streamlit | `pip install -e "packages/generator[ui]"` |
 | `UnicodeEncodeError` no terminal | Rode `$env:PYTHONUTF8 = "1"` no PowerShell antes do comando |
 | `Transformação falhou` | PySpark: um `.py` gerado tem erro de sintaxe; Scala: o `sbt compile` falhou. Veja o arquivo e a linha no log |
 | `sbt não encontrado` | Só no projeto Scala: ele foi gravado, mas não compilado. Instale o sbt para compilar |

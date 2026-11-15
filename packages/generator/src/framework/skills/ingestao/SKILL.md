@@ -6,7 +6,7 @@ description: "Use when generating, reviewing, or explaining the ingestion.yml (f
 # Ingestão (ingestion.yml)
 
 Use this skill whenever the task involves the ingestion side of a table: turning the data contract into the
-`ingestion.yml` that the [ingestion-orchestrator](https://github.com/ChapeuG/ingestion-orchestrator) uses to read
+`ingestion.yml` that the ingestion orchestrator (`packages/orchestrator` in this repository) uses to read
 the source and write to the raw layer.
 
 ## Purpose

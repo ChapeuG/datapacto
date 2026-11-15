@@ -3,7 +3,7 @@
 Motor de ingestão **PySpark** guiado por **data contract**. Um projeto só ingere qualquer tabela de qualquer origem
 JDBC (Oracle, Postgres, MySQL, SQL Server) para a raw do Data Lake: basta o contrato da tabela.
 
-Ele é isolado do framework [`dl-gen`](https://github.com/ChapeuG/dl-gen) e não depende de lib utils externa: secrets, criptografia, datas e
+Ele é isolado do gerador ([`packages/generator`](../generator/README.md)) e não depende de lib utils externa: secrets, criptografia, datas e
 criação da tabela no Athena foram reescritos aqui.
 
 ```
@@ -21,10 +21,10 @@ O mesmo `dl-gen generate --contract` também gera o projeto de **transformação
 ## 1. Escrever o contrato
 
 ```bash
-python scripts/novo_contrato.py <dataset> <tabela> --domain <area>
+python packages/orchestrator/scripts/novo_contrato.py <dataset> <tabela> --domain <area>
 ```
 
-Isso copia [`contracts/template.odcs.yaml`](contracts/template.odcs.yaml) para
+Isso copia [`contracts/template.odcs.yaml`](../../contracts/template.odcs.yaml) para
 `contracts/<dataset>/<tabela>.odcs.yaml` com id e datas preenchidos. O template explica cada campo e marca o que é
 obrigatório (`[OBRIGATÓRIO]`) e o que é extensão própria (`[EXT]`, sempre em `customProperties`).
 
@@ -72,7 +72,7 @@ Senha e chave **nunca** entram no contrato: só o ARN da secret.
 
 ## 2. Gerar o ingestion.yml
 
-No framework ([`dl-gen`](https://github.com/ChapeuG/dl-gen), outro repositório):
+No gerador (`dl-gen`, em [`packages/generator`](../generator/README.md)):
 
 ```bash
 dl-gen generate --contract contracts/<dataset>/<tabela>.odcs.yaml --publish-s3 s3://<bucket>/ingestion-config/
@@ -89,7 +89,7 @@ campo sai como `PREENCHER` e o orquestrador recusa a execução no ambiente que 
 O pacote `ingestion` é instalado no cluster com `pip` (bootstrap action do EMR, por exemplo), sem gerar zip:
 
 ```bash
-pip install "git+https://github.com/ChapeuG/ingestion-orchestrator@<versão>"
+pip install "git+https://github.com/ChapeuG/dl-gen@<versão>#subdirectory=packages/orchestrator"
 aws s3 cp jobs/main.py s3://<bucket-artefatos>/ingestion-orchestrator/
 ```
 
@@ -141,8 +141,9 @@ aspas do alias) e registre em `CONNECTORS`.
 
 ## Estrutura
 
+Os contratos (`template.odcs.yaml` e os contratos por dataset) ficam em `contracts/`, na raiz do repositório.
+
 ```
-contracts/                  template.odcs.yaml + contratos por dataset
 jobs/main.py                entrypoint do spark-submit
 src/ingestion/
   config.py                 leitura e validação do ingestion.yml
@@ -159,6 +160,7 @@ scripts/                    novo_contrato.py
 ## Testes
 
 ```bash
+cd packages/orchestrator
 pip install -e .[dev]
 python -m pytest
 ```

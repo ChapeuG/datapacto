@@ -1,6 +1,6 @@
 """Cria contracts/<dataset>/<tabela>.odcs.yaml a partir do template.
 
-    python scripts/novo_contrato.py <dataset> <tabela> [--domain <area>]
+    python packages/orchestrator/scripts/novo_contrato.py <dataset> <tabela> [--domain <area>]
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[3]  # raiz do monorepo (contracts/ fica lá)
 TEMPLATE = ROOT / "contracts" / "template.odcs.yaml"
 
 

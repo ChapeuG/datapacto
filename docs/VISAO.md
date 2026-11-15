@@ -1,6 +1,6 @@
 # Visão — plataforma open source de data contracts
 
-> Status: proposta para discussão. Nome do projeto provisório: **dl-gen** (o nome final está nas decisões em aberto, seção 14).
+> Status: proposta para discussão. Nome do projeto provisório: **dl-gen** (o nome final está nas decisões em aberto, seção 16).
 
 ## 1. Em uma frase
 
@@ -187,7 +187,43 @@ registry/
 `catalog.json` e `monitors.yml` são **neutros**: descrevem o que monitorar e catalogar sem citar nenhuma ferramenta.
 Cada publicador traduz esses arquivos para a sua ferramenta. Assim, adicionar um destino novo não muda o compilador.
 
-## 9. Publicadores (destinos)
+## 9. Estratégia de destinos: visão própria, depois AWS, depois multi-cloud
+
+A plataforma não depende de nenhuma ferramenta externa para ter valor. A ordem é:
+
+| Etapa | O que é | Por quê |
+|---|---|---|
+| **1. Visão própria** | Catálogo e painel de saúde **dentro do Studio**, lendo o registro de contratos e os eventos de carga | Funciona no primeiro dia, sem conta em ferramenta nenhuma; é a demonstração do projeto |
+| **2. AWS** | Publicadores nativos: CloudWatch (monitoria) e Glue Data Catalog (catálogo), depois Lake Formation e SageMaker Catalog | É onde a pipeline gerada já roda (S3, Glue, EMR) |
+| **3. Ferramentas de mercado** | Datadog, Grafana, Quick Suite, OpenMetadata... | Para empresas que já usam essas ferramentas |
+| **4. Multi-cloud** | Runtime e publicadores para GCP (BigQuery, Dataplex, Cloud Monitoring) e Azure (Fabric/Synapse, Purview, Azure Monitor) | Amplia o público quando a base estiver madura |
+
+### Visão própria
+
+O que o Studio mostra sem integração externa:
+
+- **Catálogo**: busca por contrato, tabela, coluna, dono, domínio e classificação; página de cada data product com
+  descrição, colunas (nome na origem e na staging), SLA, regras de qualidade e versões.
+- **Saúde**: para cada contrato, as últimas cargas (status, linhas, duração), o resultado de cada regra de qualidade
+  e o atraso em relação ao SLA (freshness), lidos dos eventos de carga gravados no registro (seção 11).
+- **Mudanças**: histórico de versões do contrato, com as mudanças que quebram compatibilidade destacadas.
+
+Os destinos externos (AWS e outros) passam a ser uma **cópia** do que a visão própria já mostra, para quem quer
+ver na ferramenta que já usa.
+
+### Como não fechar a porta para outras nuvens
+
+O multi-cloud não é construído agora, mas três decisões de hoje evitam reescrever tudo depois:
+
+1. **Artefatos neutros**: o bundle (`catalog.json`, `monitors.yml`, `quality.yml`) não cita nenhum serviço de
+   nuvem; só os publicadores traduzem para AWS, GCP ou Azure.
+2. **Interfaces de provedor no runtime**: armazenamento (S3 → GCS/ADLS), segredos (Secrets Manager → Secret
+   Manager/Key Vault) e catálogo (Glue → BigQuery/Unity) ficam atrás de uma interface pequena, com a implementação
+   AWS como a primeira.
+3. **Nada de AWS no contrato**: o contrato não guarda ARN de serviço; referências específicas de nuvem ficam no
+   `platform.yaml` (a única exceção hoje, o `secretId`, vira uma referência lógica resolvida por ambiente).
+
+## 10. Publicadores (destinos)
 
 ### Interface
 
@@ -239,7 +275,7 @@ notifications:
   teams: { webhook_secret: arn:aws:secretsmanager:...:teams }
 ```
 
-## 10. Telemetria: o que o orquestrador passa a emitir
+## 11. Telemetria: o que o orquestrador passa a emitir
 
 Para os monitores gerados funcionarem, toda carga emite as **mesmas métricas, com os mesmos nomes**:
 
@@ -254,7 +290,7 @@ Para os monitores gerados funcionarem, toda carga emite as **mesmas métricas, c
 Os eventos de carga também ficam gravados (JSON no S3, por exemplo) para histórico e auditoria. Cada publicador de
 monitoria sabe ler essas métricas da sua origem (CloudWatch diretamente, ou via exportação para Datadog/Prometheus).
 
-## 11. Ciclo de vida e governança do contrato
+## 12. Ciclo de vida e governança do contrato
 
 ```
 draft ──▶ em revisão ──▶ active ──▶ deprecated ──▶ retired
@@ -268,65 +304,63 @@ draft ──▶ em revisão ──▶ active ──▶ deprecated ──▶ reti
   ligados no `platform.yaml` daquele ambiente.
 - **Deprecação**: ao marcar `deprecated`, o catálogo mostra o aviso e os consumidores são notificados.
 
-## 12. Interface (Studio)
+## 13. Interface (Studio)
 
 | Área | O que tem |
 |---|---|
-| **Contratos** | Lista de contratos com status, versão, dono e saúde (última carga, qualidade). |
+| **Catálogo** | A visão própria (seção 9): busca e página de cada data product, sem depender de ferramenta externa. |
 | **Novo contrato** | O fluxo atual de 4 etapas (Contrato → Campos → Validação → Geração), com a validação usando o rulebook. |
 | **Regras de modelagem** | Upload de PDF/XLS/DOCX, revisão das regras extraídas ao lado do trecho do documento, versões do rulebook. |
 | **Publicação** | `plan` por destino (o que vai mudar), botão de aplicar, histórico de publicações. |
 | **Destinos** | Quais publicadores estão ligados em cada ambiente e o teste de conexão de cada um. |
-| **Saúde** | Visão por contrato: últimas cargas, regras de qualidade, freshness em relação ao SLA, com link para a ferramenta de monitoria. |
+| **Saúde** | A visão própria de monitoria: últimas cargas, regras de qualidade e freshness em relação ao SLA; link para a ferramenta externa quando houver publicador ligado. |
 
-## 13. Organização do código open source
+## 14. Organização do código open source
 
-Hoje são dois repositórios (`dl-gen` e `ingestion-orchestrator`). Proposta: **um monorepo com pacotes separados**,
-para versionar o contrato, o compilador e o runtime juntos:
+**Feito:** os dois repositórios viraram um monorepo, com o histórico dos dois preservado:
 
 ```
 <projeto>/
 ├── packages/
-│   ├── core/            # modelo do contrato (ODCS), rulebook, validação, bundle
-│   ├── cli/             # comandos: init, validate, compile, plan, publish, generate
-│   ├── studio/          # interface
-│   ├── runtime/         # orquestrador de ingestão (o atual ingestion-orchestrator)
-│   ├── generators/      # transformação PySpark/Scala (o atual gerador do dl-gen)
-│   └── publishers/      # cloudwatch, datadog, grafana, sagemaker-catalog, glue, lakeformation, quick-suite
-├── rules/examples/      # rulebook de exemplo
-├── contracts/examples/  # contratos de exemplo
-└── docs/
+│   ├── generator/       # dl-gen: CLI, Studio, nomenclatura, geração de ingestion.yml e transformação
+│   └── orchestrator/    # runtime de ingestão (JDBC → raw), roda no cluster Spark
+├── contracts/           # template e contratos
+└── docs/                # manual e esta visão
 ```
+
+Os pacotes continuam separados porque têm públicos diferentes (o orquestrador roda no EMR, sem as dependências do
+gerador). Conforme as fases avançam, entram novos pacotes: `core/` (modelo do contrato, rulebook, bundle) e
+`publishers/` (um por destino), e o `rules/examples/` com o rulebook de exemplo.
 
 Licença sugerida: **Apache 2.0** (a mesma do ODCS). Contribuição por PR, com CI rodando os testes e o
 `datacontract lint` nos exemplos.
 
-## 14. Roadmap
+## 15. Roadmap
 
 | Fase | Entrega | Resultado para quem usa |
 |---|---|---|
-| **0 — Base** (já feito) | Contrato ODCS, Studio de 4 etapas, `ingestion.yml`, orquestrador, transformação PySpark/Scala | Uma tabela nova sai com pipeline gerada |
+| **0 — Base** (já feito) | Contrato ODCS, Studio de 4 etapas, `ingestion.yml`, orquestrador, transformação PySpark/Scala, monorepo | Uma tabela nova sai com pipeline gerada |
 | **1 — Regras de modelagem** | Rulebook em YAML; padrões atuais migrados para ele; tela de upload e revisão (PDF/XLSX/DOCX) | Cada empresa usa o próprio padrão, sem mexer no código |
 | **2 — Bundle e registro** | Compilação do bundle completo; registro em S3/Git; versionamento e detecção de quebra de compatibilidade | Um lugar só com tudo de cada contrato e versão |
-| **3 — Telemetria + CloudWatch** | Métricas padronizadas no orquestrador; publicador CloudWatch (métricas, alarmes, dashboard) | Toda tabela nova já nasce monitorada |
-| **4 — Governança** | Publicadores Glue Data Catalog, Lake Formation (LF-tags) e SageMaker Catalog | Catálogo preenchido automaticamente |
+| **3 — Visão própria** | Eventos de carga gravados pelo orquestrador; Catálogo e Saúde no Studio | Catálogo e monitoria funcionando sem nenhuma ferramenta externa |
+| **4 — AWS** | Métricas no CloudWatch (métricas, alarmes, dashboard); Glue Data Catalog; depois Lake Formation e SageMaker Catalog | O mesmo catálogo e monitoria dentro da AWS |
 | **5 — Mais destinos** | Datadog, Grafana, Quick Suite, notificações | Funciona com as ferramentas que a empresa já tem |
-| **6 — Comunidade** | Monorepo, documentação de plugins, exemplos, site | Terceiros criam publicadores e regras |
+| **6 — Multi-cloud e comunidade** | Provedores GCP e Azure; documentação de plugins, exemplos, site | Outras nuvens; terceiros criam publicadores e regras |
 
 Também ficam na fila os itens já citados antes: qualidade e SLA mais ricos (fase 3) e linhagem (fase 4/5).
 
-## 15. Decisões em aberto
+## 16. Decisões em aberto
 
 1. **Nome do projeto** open source (o `dl-gen` é provisório).
-2. **Monorepo ou dois repositórios?** (recomendação: monorepo, seção 13).
+2. ~~Monorepo ou dois repositórios?~~ **Decidido: monorepo** (seção 14).
 3. **Registro**: S3, Git ou os dois? (recomendação: Git para autoria e revisão; S3 para o runtime ler).
 4. **Entrega dos publicadores**: API direta, Terraform ou os dois? (recomendação: API primeiro, Terraform na fase 5).
-5. **Primeiro destino de monitoria**: CloudWatch (nativo AWS, sem custo extra de integração) ou Datadog?
-6. **Primeiro destino de governança**: Glue Data Catalog (simples) ou SageMaker Catalog (mais completo)?
+5. ~~Primeiro destino de monitoria~~ **Decidido: visão própria no Studio, depois CloudWatch** (seção 9).
+6. ~~Primeiro destino de governança~~ **Decidido: catálogo próprio no Studio, depois Glue Data Catalog** (seção 9).
 7. **Extração de regras do PDF**: aceitar só com LLM configurado, ou oferecer também um modo manual guiado?
 8. **Multi-tenant**: uma instalação atende vários domínios/times com rulebooks diferentes?
 
-## 16. Riscos
+## 17. Riscos
 
 | Risco | Mitigação |
 |---|---|
