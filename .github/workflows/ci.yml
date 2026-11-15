@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  generator:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/generator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[ui]" pytest
+      - run: python -m pytest tests -q
+
+  orchestrator:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/orchestrator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pip install -e ".[dev]"
+      - run: python -m pytest -q
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install datacontract-cli
+      # O template tem <placeholders> de propósito: valida só os contratos reais
+      - name: Lint dos data contracts
+        run: |
+          find contracts -name '*.odcs.yaml' ! -name 'template.odcs.yaml' -print0 |
+            xargs -0 -r -n1 datacontract lint

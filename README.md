@@ -1,22 +1,51 @@
-# Data Lake Framework (`dl-gen`)
+# datapacto
 
-Gera, a partir do **data contract** de uma tabela (ou do DDL, de uma query ou de qualquer schema com nome e tipo dos
-campos: Avro, JSON Schema, planilha, parquet...):
+**Um data contract entra; a pipeline, a qualidade e o catálogo saem prontos.**
 
-- o `ingestion.yml` usado pelo [`ingestion-orchestrator`](https://github.com/ChapeuG/ingestion-orchestrator);
-- o projeto de transformação `<dataset>-transformation` (raw → staging Delta), em **PySpark** (padrão) ou **Scala** (`--language scala`).
+Você descreve a tabela uma vez, num data contract no padrão aberto [ODCS](https://bitol-io.github.io/open-data-contract-standard).
+A plataforma valida o contrato contra as regras de modelagem da empresa, gera a ingestão e a transformação, e
+(em construção) publica o mesmo contrato nas ferramentas de monitoria e de catálogo.
 
-```powershell
-git clone https://github.com/ChapeuG/dl-gen.git
-cd dl-gen
-pip install -e ".[ui]"
-
-dl-gen ui                                   # interface: contrato → campos → validação → geração
-dl-gen generate --contract actor.odcs.yaml  # ou pela linha de comando
+```
+contracts/<dataset>/<tabela>.odcs.yaml
+        │  datapacto generate  (ou a interface: datapacto ui)
+        ▼
+ingestion.yml ──▶ orquestrador (JDBC → raw no S3 + Glue/Athena)
+transformação ──▶ projeto PySpark ou Scala (raw → staging Delta)
 ```
 
-Passo a passo completo: **[MANUAL.md](MANUAL.md)**.
+## O que tem neste repositório
 
-O que cada etapa sabe fazer está nas **[skills do agente](src/framework/skills/README.md)** (`src/framework/skills/`,
-um `SKILL.md` por skill; `dl-gen skills` lista). Nomes de coluna com LLM usam o LiteLLM pela lib `openai`
-(`dl-gen llm` testa a conexão).
+| Pasta | O que é |
+|---|---|
+| [`packages/generator`](packages/generator/README.md) | **Gerador** (`datapacto`): CLI e interface *Data Contract Studio*. Contrato → `ingestion.yml` + projeto de transformação, com nomenclatura padronizada (heurística ou LLM). |
+| [`packages/orchestrator`](packages/orchestrator/README.md) | **Orquestrador** (PySpark): lê o `ingestion.yml`, conecta na origem (Postgres, Oracle, MySQL, SQL Server), roda as regras de qualidade, criptografa colunas sensíveis e grava na raw. |
+| [`contracts/`](contracts/template.odcs.yaml) | Template do data contract e os contratos. |
+| [`docs/`](docs/MANUAL.md) | [Manual](docs/MANUAL.md) (passo a passo) e [visão do projeto](docs/VISAO.md) (para onde vamos). |
+
+Os dois pacotes são instalados separadamente: o orquestrador roda no cluster Spark (EMR) e não precisa das
+dependências do gerador.
+
+## Começo rápido
+
+```powershell
+git clone https://github.com/ChapeuG/datapacto.git
+cd datapacto
+pip install -e "packages/generator[ui]"
+
+datapacto ui                                              # interface: contrato → campos → validação → geração
+datapacto generate --contract contracts/<dataset>/<tabela>.odcs.yaml   # ou pela linha de comando
+```
+
+Para o orquestrador, veja [`packages/orchestrator`](packages/orchestrator/README.md).
+
+## Testes
+
+```powershell
+cd packages/generator;    python -m pytest tests
+cd packages/orchestrator; python -m pytest
+```
+
+## Licença
+
+Apache 2.0 (a definir: ver [decisões em aberto](docs/VISAO.md#16-decisões-em-aberto)).
