@@ -1,7 +1,7 @@
-"""Dados de teste: ingestion.yml no formato que o dl-gen gera (ingestion/v1)."""
+"""Dados de teste: ingestion.yml no formato que o datapacto gera (ingestion/v1)."""
 
-ACTOR = """\n# Gerado pelo dl-gen a partir do data contract. Não edite à mão: altere o contrato e gere de novo.
-# Lido pelo ingestion-orchestrator (valores com {env} são resolvidos por --env).
+ACTOR = """\n# Gerado pelo datapacto a partir do data contract. Não edite à mão: altere o contrato e gere de novo.
+# Lido pelo datapacto-orchestrator (valores com {env} são resolvidos por --env).
 apiVersion: ingestion/v1
 kind: Ingestion
 contract:
@@ -68,8 +68,8 @@ quality:
   severity: warning
 """
 
-CLIENTE = """\n# Gerado pelo dl-gen a partir do data contract. Não edite à mão: altere o contrato e gere de novo.
-# Lido pelo ingestion-orchestrator (valores com {env} são resolvidos por --env).
+CLIENTE = """\n# Gerado pelo datapacto a partir do data contract. Não edite à mão: altere o contrato e gere de novo.
+# Lido pelo datapacto-orchestrator (valores com {env} são resolvidos por --env).
 apiVersion: ingestion/v1
 kind: Ingestion
 contract:

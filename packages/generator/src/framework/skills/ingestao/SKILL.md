@@ -1,6 +1,6 @@
 ---
 name: ingestao
-description: "Use when generating, reviewing, or explaining the ingestion.yml (format ingestion/v1) read by the ingestion-orchestrator: source servers per environment, load mode (incremental/full), columns, encryption and quality rules derived from the ODCS data contract."
+description: "Use when generating, reviewing, or explaining the ingestion.yml (format ingestion/v1) read by the datapacto-orchestrator: source servers per environment, load mode (incremental/full), columns, encryption and quality rules derived from the ODCS data contract."
 ---
 
 # Ingestão (ingestion.yml)
@@ -12,7 +12,7 @@ the source and write to the raw layer.
 ## Purpose
 
 The ingestion produces the raw data that the transformation (skills **project-structure**, **job-parameters**)
-reads as `data_source`. In the dl-gen it is implemented by `agents/input_gen.py` and `ingestion_config.py`; the file
+reads as `data_source`. In the datapacto it is implemented by `agents/input_gen.py` and `ingestion_config.py`; the file
 goes to `ingestion-config/<dataset>/<tabela>.ingestion.yml`.
 
 ## Required Behavior

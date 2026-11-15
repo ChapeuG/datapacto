@@ -22,7 +22,7 @@ log = logging.getLogger("ingestion")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="dl-ingestion", description="Ingestão JDBC → raw guiada por data contract")
+    p = argparse.ArgumentParser(prog="datapacto-ingest", description="Ingestão JDBC → raw guiada por data contract")
     p.add_argument("--config", required=True,
                    help="ingestion.yml ou prefixo (s3://bucket/ingestion-config/ ou pasta local)")
     p.add_argument("--env", required=True, help="Ambiente: escolhe o servidor e resolve {env} (dev | hml | prd)")
@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from ingestion.pipeline import RunParams, run_table
 
-    spark = (SparkSession.builder.appName("ingestion-orchestrator")
+    spark = (SparkSession.builder.appName("datapacto-orchestrator")
              .config("spark.sql.session.timeZone", "UTC")
              .enableHiveSupport()
              .getOrCreate())

@@ -135,7 +135,7 @@ When answering a naming request, structure the response with these fields when h
 - Do not confuse `id` and `cd`.
 - Do not ignore the governance mapping defined in this skill unless the user explicitly asks for an exception.
 
-## Uso no dl-gen
+## Uso no datapacto
 
 O agente de nomenclatura (`agents/naming.py`) usa esta skill. Com LLM configurado, as seções **Prompt do sistema**
 e **Prompt do pedido** abaixo são enviadas ao modelo como estão; o agente preenche as `{chaves}`. Em `{regras}` entram
@@ -143,7 +143,7 @@ as seções *How to Decide the Prefix* e *Guardrails* desta skill. Em `{padroes}
 `references/padrao_nomenclatura.txt`. Sem LLM, o glossário (`standards/glossary.py`) propõe os nomes; nos dois
 casos o resultado é conferido contra o padrão (`standards/nomenclatura.py`).
 
-O dl-gen roda sem interação: quando a natureza do campo for ambígua, o LLM escolhe a mais provável e a pessoa
+O datapacto roda sem interação: quando a natureza do campo for ambígua, o LLM escolhe a mais provável e a pessoa
 revisa em `naming/<tabela>.json` (no lugar de perguntar, como pede o item 7 de *Required Behavior*).
 
 ## Prompt do sistema

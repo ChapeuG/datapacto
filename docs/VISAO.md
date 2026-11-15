@@ -1,6 +1,6 @@
 # Visão — plataforma open source de data contracts
 
-> Status: proposta para discussão. Nome do projeto provisório: **dl-gen** (o nome final está nas decisões em aberto, seção 16).
+> Status: proposta para discussão. Nome do projeto: **datapacto** (decidido, seção 16).
 
 ## 1. Em uma frase
 
@@ -63,7 +63,7 @@ pipeline rodando e monitorada.
 flowchart LR
     subgraph Autoria
         UI[Studio - interface]
-        CLI[CLI dl-gen]
+        CLI[CLI datapacto]
         GIT[Git / PR]
     end
     RB[(Regras de modelagem\nrulebook.yaml)]
@@ -93,13 +93,13 @@ O fluxo tem dois momentos:
 
 | Camada | Responsabilidade | Hoje |
 |---|---|---|
-| Autoria | Criar e editar o contrato | **Existe**: Studio (`dl-gen ui`) e CLI (`dl-gen contrato`, `generate`) |
+| Autoria | Criar e editar o contrato | **Existe**: Studio (`datapacto ui`) e CLI (`datapacto contrato`, `generate`) |
 | Regras de modelagem | Transformar o documento de padrões da empresa em regras checáveis | Parcial: nomenclatura, glossário e tipagem estão **no código** (`standards/`, `skills/`) |
 | Validação | ODCS, regras de modelagem, consistência | Parcial: ODCS + nomenclatura + checklist do Studio |
 | Compilação | Gerar o *bundle* (todos os artefatos do contrato) | Parcial: gera `ingestion.yml` e a transformação |
 | Registro | Guardar contratos e bundles versionados | Parcial: `--publish-s3` envia só o `ingestion.yml` |
 | Publicadores | Levar o contrato para cada ferramenta | **Novo** |
-| Execução | Rodar a carga | **Existe**: `ingestion-orchestrator` (JDBC → raw) e o projeto de transformação gerado |
+| Execução | Rodar a carga | **Existe**: `datapacto-orchestrator` (JDBC → raw) e o projeto de transformação gerado |
 | Telemetria | Métricas e eventos padronizados de cada carga | Parcial: o orquestrador loga, mas não publica métricas |
 
 ## 6. Conceitos
@@ -238,8 +238,8 @@ class Publisher(Protocol):
         """Aplica as mudanças. Idempotente: aplicar de novo não duplica."""
 ```
 
-Plugins são registrados por *entry points* do Python (`dl_gen.publishers`). A comunidade publica um pacote
-(`pip install dl-gen-publisher-xyz`) e ele aparece na plataforma sem mudar o núcleo.
+Plugins são registrados por *entry points* do Python (`datapacto.publishers`). A comunidade publica um pacote
+(`pip install datapacto-publisher-xyz`) e ele aparece na plataforma sem mudar o núcleo.
 
 ### Destinos previstos
 
@@ -322,7 +322,7 @@ draft ──▶ em revisão ──▶ active ──▶ deprecated ──▶ reti
 ```
 <projeto>/
 ├── packages/
-│   ├── generator/       # dl-gen: CLI, Studio, nomenclatura, geração de ingestion.yml e transformação
+│   ├── generator/       # datapacto: CLI, Studio, nomenclatura, geração de ingestion.yml e transformação
 │   └── orchestrator/    # runtime de ingestão (JDBC → raw), roda no cluster Spark
 ├── contracts/           # template e contratos
 └── docs/                # manual e esta visão
@@ -351,7 +351,7 @@ Também ficam na fila os itens já citados antes: qualidade e SLA mais ricos (fa
 
 ## 16. Decisões em aberto
 
-1. **Nome do projeto** open source (o `dl-gen` é provisório).
+1. ~~Nome do projeto~~ **Decidido: datapacto** (antes `datapacto`).
 2. ~~Monorepo ou dois repositórios?~~ **Decidido: monorepo** (seção 14).
 3. **Registro**: S3, Git ou os dois? (recomendação: Git para autoria e revisão; S3 para o runtime ler).
 4. **Entrega dos publicadores**: API direta, Terraform ou os dois? (recomendação: API primeiro, Terraform na fase 5).

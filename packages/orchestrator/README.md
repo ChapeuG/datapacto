@@ -1,4 +1,4 @@
-# ingestion-orchestrator
+# datapacto-orchestrator
 
 Motor de ingestão **PySpark** guiado por **data contract**. Um projeto só ingere qualquer tabela de qualquer origem
 JDBC (Oracle, Postgres, MySQL, SQL Server) para a raw do Data Lake: basta o contrato da tabela.
@@ -8,7 +8,7 @@ criação da tabela no Athena foram reescritos aqui.
 
 ```
 contracts/<dataset>/<tabela>.odcs.yaml      (pessoas escrevem — padrão ODCS v3.2.0)
-        │  dl-gen generate --contract ... --publish-s3 s3://<bucket>/ingestion-config/
+        │  datapacto generate --contract ... --publish-s3 s3://<bucket>/ingestion-config/
         ▼
 s3://<bucket>/ingestion-config/<dataset>/<tabela>.ingestion.yml   (gerado — formato ingestion/v1)
         │  spark-submit jobs/main.py --config s3://<bucket>/ingestion-config/ --env prd
@@ -16,7 +16,7 @@ s3://<bucket>/ingestion-config/<dataset>/<tabela>.ingestion.yml   (gerado — fo
 JDBC (conector do source.type) → qualidade → criptografia AES → JSON gzip na raw → tabela Glue/Athena
 ```
 
-O mesmo `dl-gen generate --contract` também gera o projeto de **transformação** (raw → staging Delta), como hoje.
+O mesmo `datapacto generate --contract` também gera o projeto de **transformação** (raw → staging Delta), como hoje.
 
 ## 1. Escrever o contrato
 
@@ -72,10 +72,10 @@ Senha e chave **nunca** entram no contrato: só o ARN da secret.
 
 ## 2. Gerar o ingestion.yml
 
-No gerador (`dl-gen`, em [`packages/generator`](../generator/README.md)):
+No gerador (`datapacto`, em [`packages/generator`](../generator/README.md)):
 
 ```bash
-dl-gen generate --contract contracts/<dataset>/<tabela>.odcs.yaml --publish-s3 s3://<bucket>/ingestion-config/
+datapacto generate --contract contracts/<dataset>/<tabela>.odcs.yaml --publish-s3 s3://<bucket>/ingestion-config/
 ```
 
 Sem `--publish-s3` o arquivo fica em `ingestion-config/<dataset>/<tabela>.ingestion.yml`, para enviar depois com
@@ -89,8 +89,8 @@ campo sai como `PREENCHER` e o orquestrador recusa a execução no ambiente que 
 O pacote `ingestion` é instalado no cluster com `pip` (bootstrap action do EMR, por exemplo), sem gerar zip:
 
 ```bash
-pip install "git+https://github.com/ChapeuG/dl-gen@<versão>#subdirectory=packages/orchestrator"
-aws s3 cp jobs/main.py s3://<bucket-artefatos>/ingestion-orchestrator/
+pip install "git+https://github.com/ChapeuG/datapacto@<versão>#subdirectory=packages/orchestrator"
+aws s3 cp jobs/main.py s3://<bucket-artefatos>/datapacto-orchestrator/
 ```
 
 Step do EMR:
@@ -98,7 +98,7 @@ Step do EMR:
 ```bash
 spark-submit \
   --packages org.postgresql:postgresql:42.7.4,com.oracle.database.jdbc:ojdbc8:21.9.0.0 \
-  s3://<bucket-artefatos>/ingestion-orchestrator/main.py \
+  s3://<bucket-artefatos>/datapacto-orchestrator/main.py \
   --config s3://<bucket>/ingestion-config/<dataset>/<tabela>.ingestion.yml \
   --env prd \
   --raw-bucket s3://datalake-{env}-raw

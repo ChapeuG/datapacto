@@ -1,4 +1,4 @@
-"""Publicação do ingestion.yml no bucket S3 lido pelo ingestion-orchestrator."""
+"""Publicação do ingestion.yml no bucket S3 lido pelo datapacto-orchestrator."""
 
 from __future__ import annotations
 

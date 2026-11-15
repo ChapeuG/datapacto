@@ -1,4 +1,4 @@
-"""Data Contract Studio — interface do framework (dl-gen ui).
+"""Data Contract Studio — interface do framework (datapacto ui).
 
 Etapas (menu lateral): 1. Contrato → 2. Campos e nomenclatura → 3. Validação → 4. Geração.
 Nas etapas 1 e 2 o painel da direita mostra o contrato ao vivo e a saúde do contrato; cada pendência

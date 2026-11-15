@@ -1,1 +1,1 @@
-"""Interface web (Streamlit) do framework: dl-gen ui."""
+"""Interface web (Streamlit) do framework: datapacto ui."""

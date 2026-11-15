@@ -17,7 +17,7 @@ import yaml
 
 SKILLS_DIR = Path(__file__).parent
 
-# Onde cada skill é aplicada no dl-gen (as skills ficam como vieram, sem campo extra no frontmatter)
+# Onde cada skill é aplicada no datapacto (as skills ficam como vieram, sem campo extra no frontmatter)
 USED_BY: dict[str, str] = {
     "leitura-de-schema": "parsers/schema_reader.py",
     "data-governance-names": "agents/naming.py (prompt do LLM) e standards/nomenclatura.py",
@@ -36,7 +36,7 @@ USED_BY: dict[str, str] = {
     "delta-write-patterns": "static/utils/delta_write_pattern",
     "hive-table-management": "static/utils/hive_table_manager",
     "error-handler": "static/error/spark_error_handler",
-    "fact-to-fact-joins": "referência (o dl-gen ainda não gera joins fato-a-fato)",
+    "fact-to-fact-joins": "referência (o datapacto ainda não gera joins fato-a-fato)",
 }
 
 _FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)

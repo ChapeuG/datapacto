@@ -1,5 +1,5 @@
 [project]
-name = "dl-gen"
+name = "datapacto"
 version = "0.1.0"
 description = "Gera o ingestion.yml e o projeto PySpark de transformação a partir de um data contract (ODCS) ou DDL"
 requires-python = ">=3.10"
@@ -25,7 +25,8 @@ aws = ["langchain-aws>=0.2.0"]
 ui = ["streamlit>=1.40"]
 
 [project.scripts]
-dl-gen = "framework.cli:main"
+datapacto = "framework.cli:main"
+dl-gen = "framework.cli:main"  # nome antigo, mantido por compatibilidade
 
 [build-system]
 requires = ["setuptools>=68.0"]

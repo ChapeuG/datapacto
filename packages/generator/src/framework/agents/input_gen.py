@@ -1,6 +1,6 @@
 """Agente 2 — Input Gen.
 
-Gera o ingestion.yml (ingestion/v1) lido pelo ingestion-orchestrator, a partir do schema + data contract.
+Gera o ingestion.yml (ingestion/v1) lido pelo datapacto-orchestrator, a partir do schema + data contract.
 """
 
 from __future__ import annotations

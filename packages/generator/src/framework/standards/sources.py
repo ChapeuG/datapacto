@@ -1,6 +1,6 @@
 """Bancos de origem suportados e os ajustes de tipagem de cada um.
 
-Driver, URL e filtro de data ficam nos conectores do ingestion-orchestrator; aqui só importa
+Driver, URL e filtro de data ficam nos conectores do datapacto-orchestrator; aqui só importa
 como cada banco mapeia seus tipos para o Spark (ex: DATE do Oracle tem hora → TimestampType).
 """
 

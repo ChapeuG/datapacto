@@ -1,5 +1,5 @@
 [project]
-name = "ingestion-orchestrator"
+name = "datapacto-orchestrator"
 version = "0.1.0"
 description = "Ingestão JDBC → raw (S3 + Glue/Athena) em PySpark, guiada por data contract ODCS"
 requires-python = ">=3.9"
@@ -14,7 +14,8 @@ spark = ["pyspark>=3.3"]
 dev = ["pytest>=7.0", "pyspark>=3.3"]
 
 [project.scripts]
-dl-ingestion = "ingestion.main:main"
+datapacto-ingest = "ingestion.main:main"
+dl-ingestion = "ingestion.main:main"  # nome antigo, mantido por compatibilidade
 
 [build-system]
 requires = ["setuptools>=68.0"]

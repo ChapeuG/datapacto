@@ -12,7 +12,7 @@ before the SDD and the field names are derived.
 
 The SDD (skill **sdd-specification**) requires, as minimum information, "DDL ou lista de campos". This skill turns
 any of those into a canonical `CREATE TABLE`, keeping name, type, nullability, primary key and comment of each field.
-In the dl-gen it is implemented by `parsers/schema_reader.py`, used by `--ddl`/`--schema` and by "Importar colunas"
+In the datapacto it is implemented by `parsers/schema_reader.py`, used by `--ddl`/`--schema` and by "Importar colunas"
 in the Studio.
 
 ## Required Behavior

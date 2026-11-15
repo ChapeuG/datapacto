@@ -1,4 +1,4 @@
-# Manual — Data Lake Framework (`dl-gen`)
+# Manual — datapacto
 
 ## O que ele faz
 
@@ -9,7 +9,7 @@ ao Data Lake:
  data contract (.odcs.yaml)  ou  DDL (.sql)
                 │
                 ▼
-          dl-gen generate
+          datapacto generate
                 │
      ┌──────────┴──────────────┐
      ▼                         ▼
@@ -32,12 +32,12 @@ nem de Java). No projeto Scala, para compilar precisa também do **sbt** (sem el
 compilado).
 
 ```powershell
-git clone https://github.com/ChapeuG/dl-gen.git
-cd dl-gen
+git clone https://github.com/ChapeuG/datapacto.git
+cd datapacto
 pip install -e "packages/generator[ui]"
 ```
 
-Pronto: o comando `dl-gen` passa a funcionar em qualquer pasta. (`[ui]` instala a interface; sem ela, use
+Pronto: o comando `datapacto` passa a funcionar em qualquer pasta. (`[ui]` instala a interface; sem ela, use
 `pip install -e .`.)
 
 ---
@@ -47,7 +47,7 @@ Pronto: o comando `dl-gen` passa a funcionar em qualquer pasta. (`[ui]` instala 
 Abra o terminal numa **pasta de trabalho** e rode:
 
 ```powershell
-dl-gen ui
+datapacto ui
 ```
 
 O navegador abre em `http://localhost:8501` com uma linha do tempo de 4 etapas:
@@ -100,7 +100,7 @@ passe o **caminho completo** do contrato:
 
 ```powershell
 cd C:\trabalho\minha-tabela
-dl-gen generate --contract C:\caminho\do\dl-gen\contracts\<dataset>\<tabela>.odcs.yaml
+datapacto generate --contract C:\caminho\do\datapacto\contracts\<dataset>\<tabela>.odcs.yaml
 ```
 
 > Erro `Path '...' does not exist`: o caminho relativo não existe na pasta onde o terminal está. Use o caminho completo.
@@ -128,7 +128,7 @@ Para fixar o nome direto no contrato, use `stagingName` na coluna. Ele vale mais
 ### Passo 4 — Publicar o ingestion.yml no S3
 
 ```powershell
-dl-gen generate --contract C:\...\actor.odcs.yaml --publish-s3 s3://<bucket>/ingestion-config/
+datapacto generate --contract C:\...\actor.odcs.yaml --publish-s3 s3://<bucket>/ingestion-config/
 ```
 
 Ou envie depois: `aws s3 cp ingestion-config\sakila\actor.ingestion.yml s3://<bucket>/ingestion-config/sakila/`.
@@ -187,7 +187,7 @@ O repositório já sai com `.github/workflows/pipeline.yml` (GitHub → CodeComm
 
 **Sem contrato, só com o DDL** (o que o DDL não informa vai por opção):
 ```powershell
-dl-gen generate --ddl C:\caminho\da\tabela.sql --dataset <dataset> --merge-keys <coluna1>,<coluna2>
+datapacto generate --ddl C:\caminho\da\tabela.sql --dataset <dataset> --merge-keys <coluna1>,<coluna2>
 ```
 
 **Sem DDL: query, schema ou arquivo com os campos.** O `--ddl` (ou `--schema`, é a mesma opção) aceita qualquer
@@ -203,8 +203,8 @@ ou use a aba "Abrir arquivo com os campos".
 | Arquivo de dados (`.parquet`, `.csv`) | uma amostra da tabela | inferido |
 
 ```powershell
-dl-gen generate --schema C:\caminho\vendas.avsc --dataset vendas
-dl-gen contrato --schema C:\caminho\campos.xlsx --dataset vendas --source-db postgres
+datapacto generate --schema C:\caminho\vendas.avsc --dataset vendas
+datapacto contrato --schema C:\caminho\campos.xlsx --dataset vendas --source-db postgres
 ```
 Coluna de query sem `CAST` vira texto, com um aviso no comentário; `SELECT *` é recusado. As regras completas estão
 na skill [`leitura-de-schema`](src/framework/skills/leitura-de-schema/SKILL.md).
@@ -217,23 +217,23 @@ variável `$DL_LANGUAGE` ou a propriedade `transformationLanguage` do contrato (
 **Várias tabelas relacionadas numa DDL só** (ex: `actor`, `movies` e a associativa `actor_movies`): crie um contrato
 por tabela e gere tudo de uma vez a partir da pasta:
 ```powershell
-dl-gen contrato --ddl C:\caminho\filmes.sql --dataset filmes --source-db mysql --raw-partition-column dt_ingestao --host <host> --database <db> --secret-id <arn>
-dl-gen generate --contract contracts\filmes
+datapacto contrato --ddl C:\caminho\filmes.sql --dataset filmes --source-db mysql --raw-partition-column dt_ingestao --host <host> --database <db> --secret-id <arn>
+datapacto generate --contract contracts\filmes
 ```
 O primeiro comando grava `contracts\filmes\actor.odcs.yaml`, `movies.odcs.yaml` e `actor_movies.odcs.yaml`. As chaves
 estrangeiras da DDL (`REFERENCES` na coluna ou `FOREIGN KEY ... REFERENCES` da tabela, inclusive compostas) viram
 `relationships` no contrato da tabela que tem a FK (`type: foreignKey`, `to: tabela.coluna`). Com a pasta, o
 framework confere se cada FK aponta para uma coluna que existe no contrato da outra tabela (antes de gerar) e
 documenta a relação na seção 8 do SDD. Sai um `ingestion.yml` por tabela e um projeto de transformação com todas.
-Um contrato com várias tabelas também funciona: `dl-gen generate --contract <arquivo> --all-tables`.
+Um contrato com várias tabelas também funciona: `datapacto generate --contract <arquivo> --all-tables`.
 
 **Várias tabelas no mesmo projeto de transformação:** gere a primeira normalmente e as próximas com `--append`
 (use a mesma linguagem).
 
 **Só o bloco de campos para colar num model existente** (`FieldSpec` em PySpark; `ModelField` em Scala):
 ```powershell
-dl-gen campos --ddl C:\caminho\da\tabela.sql -o fields.py
-dl-gen campos --ddl C:\caminho\da\tabela.sql --language scala -o Field.scala
+datapacto campos --ddl C:\caminho\da\tabela.sql -o fields.py
+datapacto campos --ddl C:\caminho\da\tabela.sql --language scala -o Field.scala
 ```
 
 ---
@@ -248,13 +248,13 @@ contra o padrão de nomenclatura e, se o LLM falhar, volta para a heurística so
   `env` (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_API_KEY`, ou `LITELLM_BASE_URL` + `LITELLM_API_KEY`)
   ou no `apiKeyHelper`.
   ```powershell
-  dl-gen generate --contract actor.odcs.yaml --llm-model litellm:<modelo>
+  datapacto generate --contract actor.odcs.yaml --llm-model litellm:<modelo>
   ```
   Se o `settings.json` tiver `ANTHROPIC_MODEL`, o LLM liga sem precisar do `--llm-model`.
 
   Para testar a conexão de verdade (URL, chave e modelo) sem gerar nada:
   ```powershell
-  dl-gen llm --llm-model litellm:<modelo>
+  datapacto llm --llm-model litellm:<modelo>
   ```
 - **Outros provedores:** `--llm-model openai:gpt-4o-mini`, `anthropic:...`, `bedrock:...` (com a chave do provedor).
 
@@ -306,15 +306,15 @@ Regras que o framework aplica sozinho:
 | Problema | O que fazer |
 |---|---|
 | `Path '...' does not exist` | O caminho é relativo à pasta do terminal. Use o caminho completo do arquivo |
-| `dl-gen` não é reconhecido | Rode `pip install -e "packages/generator[ui]"` de novo na pasta do framework |
-| `dl-gen ui` diz que falta o Streamlit | `pip install -e "packages/generator[ui]"` |
+| `datapacto` não é reconhecido | Rode `pip install -e "packages/generator[ui]"` de novo na pasta do framework |
+| `datapacto ui` diz que falta o Streamlit | `pip install -e "packages/generator[ui]"` |
 | `UnicodeEncodeError` no terminal | Rode `$env:PYTHONUTF8 = "1"` no PowerShell antes do comando |
 | `Transformação falhou` | PySpark: um `.py` gerado tem erro de sintaxe; Scala: o `sbt compile` falhou. Veja o arquivo e a linha no log |
 | `sbt não encontrado` | Só no projeto Scala: ele foi gravado, mas não compilado. Instale o sbt para compilar |
 | Aviso de `PREENCHER` | Falta um campo obrigatório no contrato. Complete e gere de novo |
 | `O contrato tem N tabelas; informe --table` | Use `--table <nome>` |
 | Nome de coluna ruim | Corrija em `naming\<tabela>.json` (ou `stagingName` no contrato) e gere de novo |
-| `LLM indisponível` | A heurística assumiu. Confira a chave do LiteLLM no `settings.json` e teste com `dl-gen llm` |
+| `LLM indisponível` | A heurística assumiu. Confira a chave do LiteLLM no `settings.json` e teste com `datapacto llm` |
 | `Formato não reconhecido` | O arquivo do `--schema` precisa trazer nome e tipo dos campos. Formatos na seção 4 |
 
 ---
@@ -346,7 +346,7 @@ As regras que o framework segue vêm das skills em **[`src/framework/skills/`](s
 um `SKILL.md` por skill (quando usar + regras), com `scripts/` que os templates espelham 1:1 e `references/` com os
 documentos de apoio. São 18: as 16 da biblioteca de transformação Spark + Delta (`sdd-specification`,
 `data-governance-names`, `data-transformation-patterns`, `project-structure`, `processor-orchestration`,
-`job-parameters`, `delta-write-patterns`, `hive-table-management`...) e duas do próprio dl-gen
+`job-parameters`, `delta-write-patterns`, `hive-table-management`...) e duas do próprio datapacto
 (`leitura-de-schema` e `ingestao`). O índice, com onde cada uma é aplicada, está no
 [README da pasta](src/framework/skills/README.md).
 
@@ -356,7 +356,7 @@ documentos de apoio. São 18: as 16 da biblioteca de transformação Spark + Del
 - Os `scripts/*.scala` são a fonte dos utilitários do projeto Scala gerado; um teste garante que continuam iguais.
 
 ```powershell
-dl-gen skills
+datapacto skills
 ```
 
 No Studio, a barra lateral mostra as skills em "Skills do agente".

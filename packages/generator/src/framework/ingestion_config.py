@@ -1,4 +1,4 @@
-"""Gera o ingestion.yml (formato ingestion/v1) lido pelo ingestion-orchestrator.
+"""Gera o ingestion.yml (formato ingestion/v1) lido pelo datapacto-orchestrator.
 
 O yml é a parte do data contract que o motor de ingestão precisa para rodar:
 origem (conector + servidores por ambiente), carga (incremental/full, paralelismo),
@@ -171,8 +171,8 @@ def build_ingestion_config(schema: SchemaInfo, source_db: str, contract_text: st
 
 def dump_ingestion_config(config: dict) -> str:
     header = (
-        "# Gerado pelo dl-gen a partir do data contract. Não edite à mão: altere o contrato e gere de novo.\n"
-        "# Lido pelo ingestion-orchestrator (valores com {env} são resolvidos por --env).\n"
+        "# Gerado pelo datapacto a partir do data contract. Não edite à mão: altere o contrato e gere de novo.\n"
+        "# Lido pelo datapacto-orchestrator (valores com {env} são resolvidos por --env).\n"
     )
     return header + yaml.safe_dump(config, sort_keys=False, allow_unicode=True, width=120)
 

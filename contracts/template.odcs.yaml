@@ -8,7 +8,7 @@
 #   3. Edite visualmente (opcional):  npx datacontract-editor contracts/<dataset>/<tabela>.odcs.yaml
 #   4. Valide:                        datacontract lint contracts/<dataset>/<tabela>.odcs.yaml
 #   5. Gere o ingestion.yml + transformação:
-#        dl-gen generate --contract contracts/<dataset>/<tabela>.odcs.yaml --publish-s3 s3://<bucket>/ingestion-config/
+#        datapacto generate --contract contracts/<dataset>/<tabela>.odcs.yaml --publish-s3 s3://<bucket>/ingestion-config/
 #
 # Legenda:  [OBRIGATÓRIO] o framework/orquestrador falham sem o campo
 #           [EXT]         extensão própria, sempre dentro de customProperties ({property, value})

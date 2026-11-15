@@ -1,6 +1,6 @@
 """Leitura e validação do ingestion.yml (formato ingestion/v1).
 
-O yml é gerado pelo framework dl-gen a partir do data contract (ODCS) e salvo no S3.
+O yml é gerado pelo framework datapacto a partir do data contract (ODCS) e salvo no S3.
 Aqui ele vira dataclasses imutáveis, já com {env} resolvido para o ambiente da execução.
 """
 

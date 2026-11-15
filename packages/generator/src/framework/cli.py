@@ -1,8 +1,8 @@
 """CLI — interface de linha de comando do framework.
 
 Uso:
-    dl-gen generate --contract actor.odcs.yaml                      # ingestion.yml + transformação
-    dl-gen generate --ddl schema.sql --sample data.csv --dataset vendas
+    datapacto generate --contract actor.odcs.yaml                      # ingestion.yml + transformação
+    datapacto generate --ddl schema.sql --sample data.csv --dataset vendas
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ console = Console()
 
 @click.group()
 def main():
-    """Data Lake Generator — gera o ingestion.yml e o projeto de transformação (PySpark ou Scala) a partir do data contract."""
+    """datapacto — gera o ingestion.yml e o projeto de transformação (PySpark ou Scala) a partir do data contract."""
     pass
 
 
@@ -238,7 +238,7 @@ def contrato(ddl: str, dataset: str, source_db: str, raw_partition_column: str, 
         refs = [f"{p['name']} → {r['to']}" for p in table["properties"] for r in p.get("relationships") or []]
         console.print(f"  {path.name}: {len(table['properties'])} colunas"
                       + (f"; relações: {', '.join(refs)}" if refs else ""))
-    console.print(f"\nGere tudo com: dl-gen generate --contract {folder}")
+    console.print(f"\nGere tudo com: datapacto generate --contract {folder}")
 
 
 @main.command()
@@ -303,7 +303,7 @@ def generate(ctx: click.Context, sample_path: str | None, dataset: str | None, p
 
     # Banner
     console.print(Panel.fit(
-        f"[bold]Data Lake Generator (dl-gen)[/bold]\n"
+        f"[bold]datapacto[/bold]\n"
         f"{'Data contract: ' + contract_path if contract_path else 'DDL: ' + str(ddl)}\n"
         f"Amostra: {sample_path or '(nenhuma)'}\n"
         f"Dataset: {dataset}\n"

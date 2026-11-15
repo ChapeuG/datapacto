@@ -2,16 +2,16 @@
 
 Biblioteca de referência para gerar e revisar a ingestão e o projeto de transformação Spark + Delta Lake
 (`<dataset>-transformation`). Cada skill é um `SKILL.md` (quando usar + regras) e, quando útil, `scripts/` que os
-templates do dl-gen **espelham 1:1** (pacote `br.com.datalake`) ou `references/` com os documentos de apoio.
+templates do datapacto **espelham 1:1** (pacote `br.com.datalake`) ou `references/` com os documentos de apoio.
 
-Para listar: `dl-gen skills`. No Studio, a barra lateral mostra as skills em "Skills do agente".
+Para listar: `datapacto skills`. No Studio, a barra lateral mostra as skills em "Skills do agente".
 
 ## Fluxo (do schema ao deploy)
 
 1. **leitura-de-schema** — lê os campos e tipos de DDL, query, Avro, JSON Schema, planilha, parquet...
-2. **sdd-specification** — especifica a tabela antes de qualquer código (o dl-gen gera o SDD).
+2. **sdd-specification** — especifica a tabela antes de qualquer código (o datapacto gera o SDD).
 3. **data-governance-names** + **data-transformation-patterns** — nomes e transformações dos campos.
-4. **ingestao** — o `ingestion.yml` do ingestion-orchestrator.
+4. **ingestao** — o `ingestion.yml` do datapacto-orchestrator.
 5. **project-structure** + **processor-orchestration** — onde o código vive e o fluxo do processor.
 6. Implementação: **catalyst-optimization**, **timestamp-handling**, **processing-timestamp**,
    **enrichment-joins**, **fact-to-fact-joins**, **nested-field-extraction**,
@@ -20,7 +20,7 @@ Para listar: `dl-gen skills`. No Studio, a barra lateral mostra as skills em "Sk
 
 ## Índice
 
-| Skill | Quando usar | Onde o dl-gen aplica |
+| Skill | Quando usar | Onde o datapacto aplica |
 |---|---|---|
 | [leitura-de-schema](leitura-de-schema/SKILL.md) | Campos vindos de query, Avro, JSON Schema, StructType, lista de campos ou arquivo de dados | `parsers/schema_reader.py` |
 | [sdd-specification](sdd-specification/SKILL.md) | Criar/revisar o SDD de uma tabela nova | `templates/transformation/sdd_doc.md.j2` |
@@ -48,7 +48,7 @@ Para listar: `dl-gen skills`. No Studio, a barra lateral mostra as skills em "Sk
 - **delta-write-patterns**: dedup é `Window` + `row_number()` (determinístico), **não** `dropDuplicates`;
   no `whenMatched`, `dh_criacao_registro` é preservado.
 
-## Como o dl-gen usa as skills
+## Como o datapacto usa as skills
 
 - **data-governance-names** é lida em tempo de execução: as seções `## Prompt do sistema` e `## Prompt do pedido`
   são o prompt do LLM, e as seções *How to Decide the Prefix* e *Guardrails* entram nele como regras. Editar o

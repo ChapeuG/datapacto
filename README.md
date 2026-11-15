@@ -1,6 +1,4 @@
-# dl-gen
-
-> Nome provisório.
+# datapacto
 
 **Um data contract entra; a pipeline, a qualidade e o catálogo saem prontos.**
 
@@ -10,7 +8,7 @@ A plataforma valida o contrato contra as regras de modelagem da empresa, gera a 
 
 ```
 contracts/<dataset>/<tabela>.odcs.yaml
-        │  dl-gen generate  (ou a interface: dl-gen ui)
+        │  datapacto generate  (ou a interface: datapacto ui)
         ▼
 ingestion.yml ──▶ orquestrador (JDBC → raw no S3 + Glue/Athena)
 transformação ──▶ projeto PySpark ou Scala (raw → staging Delta)
@@ -20,7 +18,7 @@ transformação ──▶ projeto PySpark ou Scala (raw → staging Delta)
 
 | Pasta | O que é |
 |---|---|
-| [`packages/generator`](packages/generator/README.md) | **Gerador** (`dl-gen`): CLI e interface *Data Contract Studio*. Contrato → `ingestion.yml` + projeto de transformação, com nomenclatura padronizada (heurística ou LLM). |
+| [`packages/generator`](packages/generator/README.md) | **Gerador** (`datapacto`): CLI e interface *Data Contract Studio*. Contrato → `ingestion.yml` + projeto de transformação, com nomenclatura padronizada (heurística ou LLM). |
 | [`packages/orchestrator`](packages/orchestrator/README.md) | **Orquestrador** (PySpark): lê o `ingestion.yml`, conecta na origem (Postgres, Oracle, MySQL, SQL Server), roda as regras de qualidade, criptografa colunas sensíveis e grava na raw. |
 | [`contracts/`](contracts/template.odcs.yaml) | Template do data contract e os contratos. |
 | [`docs/`](docs/MANUAL.md) | [Manual](docs/MANUAL.md) (passo a passo) e [visão do projeto](docs/VISAO.md) (para onde vamos). |
@@ -31,12 +29,12 @@ dependências do gerador.
 ## Começo rápido
 
 ```powershell
-git clone https://github.com/ChapeuG/dl-gen.git
-cd dl-gen
+git clone https://github.com/ChapeuG/datapacto.git
+cd datapacto
 pip install -e "packages/generator[ui]"
 
-dl-gen ui                                              # interface: contrato → campos → validação → geração
-dl-gen generate --contract contracts/<dataset>/<tabela>.odcs.yaml   # ou pela linha de comando
+datapacto ui                                              # interface: contrato → campos → validação → geração
+datapacto generate --contract contracts/<dataset>/<tabela>.odcs.yaml   # ou pela linha de comando
 ```
 
 Para o orquestrador, veja [`packages/orchestrator`](packages/orchestrator/README.md).
