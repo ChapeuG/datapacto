@@ -152,3 +152,75 @@ def test_language_round_trips_through_contract(tmp_path):
     assert (tmp_path / "vendas-transformation" / "build.sbt").exists()
     assert not (tmp_path / "vendas-transformation" / "main.py").exists()
     assert r.files
+
+
+TWO_TABLES = DDL + """
+CREATE TABLE public.pedido (
+    id_pedido   INTEGER PRIMARY KEY,
+    id_cliente  INTEGER REFERENCES public.cliente(id),
+    vl_total    NUMERIC(12,2)
+);
+"""
+
+
+def test_tables_from_ddl_reads_every_table():
+    tables = service.tables_from_ddl(TWO_TABLES)
+    assert [f["table"] for f, _ in tables] == ["cliente", "pedido"]
+    assert tables[0][0]["loadMode"] == "incremental"  # tem coluna de data
+    assert tables[1][0]["loadMode"] == "full"         # não tem
+    assert tables[0][0]["id"] != tables[1][0]["id"]   # um contrato por tabela
+
+
+def test_quality_rules_become_odcs_and_ingestion_checks():
+    from framework.ingestion_config import _quality
+
+    form, servers, rows = _filled()
+    form["quality"] = [
+        {"rule": "notNull", "columns": ["nome", "nu_cpf", "nao_existe"], "min": None, "severity": "error"},
+        {"rule": "unique", "columns": [], "min": None, "severity": "error"},          # vazio = chave primária
+        {"rule": "unique", "columns": ["nu_cpf"], "min": None, "severity": "warning"},
+        {"rule": "rowCount", "columns": [], "min": 10, "severity": "warning"},
+    ]
+    contract = service.build_contract(form, servers, rows)
+    load_contract(service.dump_contract(contract))  # continua ODCS válido
+    table = contract["schema"][0]
+    checks = _quality(table)
+    assert {"check": "notNull", "columns": ["nome"], "severity": "error"} in checks
+    assert {"check": "notNull", "columns": ["nu_cpf"], "severity": "error"} in checks
+    assert {"check": "unique", "columns": ["id"], "severity": "error"} in checks
+    assert {"check": "unique", "columns": ["nu_cpf"], "severity": "warning"} in checks
+    assert {"check": "rowCount", "mustBeGreaterOrEqualTo": 10, "severity": "warning"} in checks
+    assert not any("nao_existe" in c.get("columns", []) for c in checks)  # coluna que não existe é ignorada
+
+    # e volta para a tela ao abrir o contrato
+    back, _, _ = service.form_from_contract(service.dump_contract(contract))
+    assert {"rule": "notNull", "columns": ["nu_cpf", "nome"], "min": None, "severity": "error"} in back["quality"] \
+        or {"rule": "notNull", "columns": ["nome", "nu_cpf"], "min": None, "severity": "error"} in back["quality"]
+    assert {"rule": "unique", "columns": [], "min": None, "severity": "error"} in back["quality"]
+    assert {"rule": "rowCount", "columns": [], "min": 10, "severity": "warning"} in back["quality"]
+
+
+def test_default_quality_for_new_tables():
+    form, servers, rows = _filled()
+    form.pop("quality")  # contrato antigo, sem regras na tela: vale o padrão
+    quality = service.build_contract(form, servers, rows)["schema"][0]["quality"]
+    assert [q["metric"] for q in quality] == ["duplicateValues", "rowCount"]
+
+
+def test_cross_table_checks():
+    form, servers, _ = _filled()
+    contracts = [service.build_contract({**form, **f}, servers, rows) for f, rows in service.tables_from_ddl(TWO_TABLES)]
+    assert all(c.level == "ok" for c in service.cross_table_checks(contracts))
+    dup = service.cross_table_checks([contracts[0], contracts[0]])
+    assert any(c.level == "error" and "cliente" in c.detail for c in dup)
+
+
+def test_generate_all_puts_tables_in_one_project(tmp_path):
+    form, servers, _ = _filled()
+    contracts = [service.build_contract({**form, **f}, servers, rows) for f, rows in service.tables_from_ddl(TWO_TABLES)]
+    results = service.generate_all(contracts, str(tmp_path))
+    assert [r.contract_path.name for r in results] == ["cliente.odcs.yaml", "pedido.odcs.yaml"]
+    for t in ("cliente", "pedido"):
+        assert (tmp_path / "ingestion-config" / "vendas" / f"{t}.ingestion.yml").exists()
+    project = "\n".join(p.as_posix() for p in (tmp_path / "vendas-transformation").rglob("*.py"))
+    assert "cliente" in project and "pedido" in project  # as duas tabelas no mesmo projeto

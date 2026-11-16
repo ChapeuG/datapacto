@@ -51,12 +51,54 @@ def empty_form() -> dict:
         "description": "", "owner": "", "sourceType": "postgres", "schema": "",
         "loadMode": "incremental", "incrementalColumns": [], "fetchSize": 150000, "numQueriesParallel": 1,
         "rawDatabase": "", "rawPartitionColumn": "", "cryptographySecretArn": "",
-        "qualityUniqueKey": True, "qualityNotEmpty": True, "transformationLanguage": "pyspark",
+        "quality": default_quality(), "transformationLanguage": "pyspark",
     }
 
 
 def empty_servers() -> list[dict]:
     return [{"environment": "prd", "host": "", "port": None, "database": "", "secretId": ""}]
+
+
+# Campos do formulário que são de cada tabela; o resto (dataset, origem, servidores, raw...) vale para todas
+TABLE_KEYS = ["id", "table", "physicalName", "description", "schema", "loadMode", "incrementalColumns",
+              "fetchSize", "numQueriesParallel", "quality"]
+
+# Regras de qualidade que o orquestrador executa antes de gravar na raw.
+# Cada regra: {"rule": notNull|unique|rowCount, "columns": [...], "min": int, "severity": error|warning}
+QUALITY_RULES = {"notNull": "Não pode vir nulo", "unique": "Sem duplicados", "rowCount": "Quantidade mínima de linhas"}
+SEVERITIES = {"error": "Bloquear a carga", "warning": "Só avisar"}
+
+
+def default_quality() -> list[dict]:
+    """Regras de toda tabela nova: chave sem duplicados (bloqueia) e carga não vazia (avisa)."""
+    return [{"rule": "unique", "columns": [], "min": None, "severity": "error"},
+            {"rule": "rowCount", "columns": [], "min": 1, "severity": "warning"}]
+
+
+def quality_from_table(table: dict) -> list[dict]:
+    """Regras de qualidade do contrato (tabela ODCS) → linhas da tela."""
+    rules: dict[tuple, dict] = {}
+    for p in table.get("properties") or []:
+        for q in p.get("quality") or []:
+            if q.get("metric") == "nullValues":
+                sev = "warning" if q.get("severity") == "warning" else "error"
+                rules.setdefault(("notNull", sev), {"rule": "notNull", "columns": [], "min": None, "severity": sev})
+                rules[("notNull", sev)]["columns"].append(p.get("physicalName") or p["name"])
+    out = list(rules.values())
+    pks = [p["name"] for p in table.get("properties") or [] if p.get("primaryKey")]
+    for q in table.get("quality") or []:
+        sev = "warning" if q.get("severity") == "warning" else "error"
+        if q.get("metric") == "duplicateValues":
+            cols = list((q.get("arguments") or {}).get("properties") or [])
+            out.append({"rule": "unique", "columns": [] if cols == pks else cols, "min": None, "severity": sev})
+        elif q.get("metric") == "rowCount":
+            low = q.get("mustBeGreaterOrEqualTo", (q.get("mustBeGreaterThan", 0) or 0) + 1)
+            out.append({"rule": "rowCount", "columns": [], "min": int(low), "severity": sev})
+    return out
+
+
+def empty_table_form() -> dict:
+    return {k: v for k, v in empty_form().items() if k in TABLE_KEYS}
 
 
 def roles_of(column: dict) -> list[str]:
@@ -112,6 +154,25 @@ def columns_from_ddl(ddl: str, source_type: str = "postgres", table: str = "") -
     return form, rows
 
 
+def tables_from_ddl(ddl: str, source_type: str = "postgres") -> list[tuple[dict, list[dict]]]:
+    """Uma ou várias DDLs/queries/schemas → [(campos da tabela, colunas)], uma entrada por tabela.
+
+    Tabela com coluna de data na origem vira carga incremental por ela; sem data, carga full.
+    """
+    ddl = read_schema(ddl)
+    out = []
+    for name in ddl_tables(ddl):
+        form, rows = columns_from_ddl(ddl, source_type, name)
+        incremental = any(r["partitioned"] for r in rows)
+        out.append(({**empty_table_form(), **form, "loadMode": "incremental" if incremental else "full"}, rows))
+    return out
+
+
+def table_names(contract_text: str) -> list[str]:
+    """Nomes das tabelas de um data contract (um contrato pode ter várias)."""
+    return [t["name"] for t in load_contract(contract_text)["schema"]]
+
+
 def form_from_contract(text: str, table: str = "") -> tuple[dict, list[dict], list[dict]]:
     """Contrato ODCS existente → (formulário, servidores, colunas)."""
     contract = load_contract(text)
@@ -133,8 +194,7 @@ def form_from_contract(text: str, table: str = "") -> tuple[dict, list[dict], li
             "rawDatabase": tp.get("rawDatabase", ""),
             "rawPartitionColumn": tp.get("rawPartitionColumn", ""),
             "cryptographySecretArn": tp.get("cryptographySecretArn", ""),
-            "qualityUniqueKey": any(q.get("metric") == "duplicateValues" for q in t.get("quality") or []),
-            "qualityNotEmpty": any(q.get("metric") == "rowCount" for q in t.get("quality") or []),
+            "quality": quality_from_table(t),
             "githubOrg": cp.get("githubOrg", ""),
             "transformationLanguage": cp.get("transformationLanguage", "pyspark")}
     server_rows = [{"environment": s.get("environment", ""), "host": s.get("host", ""), "port": s.get("port"),
@@ -201,6 +261,35 @@ def contracts_from_ddl(ddl: str, form: dict, servers: list[dict]) -> list[dict]:
     return contracts
 
 
+def _quality_rules(rules, cols: list[dict]) -> tuple[list[dict], dict[str, list[dict]]]:
+    """Regras da tela → (quality da tabela, quality por coluna) no formato ODCS.
+
+    "Sem duplicados" sem coluna escolhida usa a chave primária. Colunas que não existem mais são ignoradas.
+    """
+    names = {str(c["name"]).strip() for c in cols}
+    pk_cols = [str(c["name"]).strip() for c in cols if c.get("primaryKey")]
+    table_q: list[dict] = []
+    column_q: dict[str, list[dict]] = {}
+    for r in default_quality() if rules is None else rules:
+        kind = r.get("rule")
+        severity = "warning" if r.get("severity") == "warning" else "error"
+        chosen = [c for c in r.get("columns") or [] if c in names]
+        if kind == "notNull":
+            for c in chosen:
+                column_q.setdefault(c, []).append({"metric": "nullValues", "mustBe": 0, "severity": severity,
+                                                   "description": "Não pode vir nulo"})
+        elif kind == "unique" and (chosen or pk_cols):
+            table_q.append({"metric": "duplicateValues", "mustBe": 0, "severity": severity,
+                            "description": "Sem duplicados" + ("" if chosen else " na chave"),
+                            "arguments": {"properties": chosen or pk_cols}})
+        elif kind == "rowCount":
+            low = r.get("min")
+            low = 1 if low is None or (isinstance(low, float) and low != low) else int(low)
+            table_q.append({"metric": "rowCount", "mustBeGreaterOrEqualTo": low, "severity": severity,
+                            "description": f"Pelo menos {low} linha(s) na carga"})
+    return table_q, column_q
+
+
 def build_contract(form: dict, servers: list[dict], columns: list[dict], naming: dict[str, dict] | None = None) -> dict:
     """Monta o data contract ODCS. naming: coluna → {staging_field, comment} revisados na etapa 2."""
     naming = naming or {}
@@ -223,6 +312,8 @@ def build_contract(form: dict, servers: list[dict], columns: list[dict], naming:
             "customProperties": _props({"secretId": str(s.get("secretId") or "").strip()}),
         }))
 
+    quality, column_quality = _quality_rules(form.get("quality"), cols)
+
     pk_pos = 0
     properties = []
     for c in cols:
@@ -241,6 +332,7 @@ def build_contract(form: dict, servers: list[dict], columns: list[dict], naming:
             "partitionKeyPosition": 1 if c.get("partitioned") else None,
             "description": (review.get("comment") or c.get("description") or "").strip(),
             "classification": "restricted" if c.get("encrypt") else None,
+            "quality": column_quality.get(name),
             "relationships": [{"type": "foreignKey", "to": str(c["references"]).strip()}]
             if str(c.get("references") or "").strip() else None,
             "customProperties": _props({
@@ -248,15 +340,6 @@ def build_contract(form: dict, servers: list[dict], columns: list[dict], naming:
                 "stagingName": (review.get("staging_field") or c.get("stagingName") or "").strip(),
             }),
         }))
-
-    quality = []
-    pk_cols = [str(c["name"]).strip() for c in cols if c.get("primaryKey")]
-    if form.get("qualityUniqueKey") and pk_cols:
-        quality.append({"metric": "duplicateValues", "mustBe": 0, "severity": "error",
-                        "description": "Uma linha por chave", "arguments": {"properties": pk_cols}})
-    if form.get("qualityNotEmpty"):
-        quality.append({"metric": "rowCount", "mustBeGreaterThan": 0, "severity": "warning",
-                        "description": "A carga não deve vir vazia"})
 
     encrypt = any(c.get("encrypt") for c in cols)
     table_props = _props({
@@ -380,6 +463,20 @@ def health_checks(contract: dict) -> list[Check]:
     return checks
 
 
+def cross_table_checks(contracts: list[dict]) -> list[Check]:
+    """Conferências entre as tabelas: nomes repetidos e chaves estrangeiras que apontam para outra tabela."""
+    names = [str((c.get("schema") or [{}])[0].get("name") or "").lower() for c in contracts]
+    repeated = sorted({n for n in names if n and names.count(n) > 1})
+    checks = [Check("error" if repeated else "ok", "Uma tabela de cada nome",
+                    f"Repetidas: {', '.join(repeated)}." if repeated else "", "table")]
+    try:
+        check_relationships(contracts)
+        checks.append(Check("ok", "Chaves estrangeiras entre as tabelas"))
+    except (ValueError, KeyError) as e:
+        checks.append(Check("error", "Chaves estrangeiras entre as tabelas", str(e), "columns"))
+    return checks
+
+
 def validate(contract: dict) -> ValidationResult:
     """Checklist da etapa 3 + simulação da geração (nada é gravado)."""
     from framework.agents.input_gen import input_gen_agent
@@ -450,10 +547,18 @@ class GenerationResult:
     published: list[str] = field(default_factory=list)
 
 
-def generate(contract: dict, output_dir: str, llm_model: str = "", publish_s3: str = "") -> GenerationResult:
+def generate_all(contracts: list[dict], output_dir: str, llm_model: str = "",
+                 publish_s3: str = "") -> list[GenerationResult]:
+    """Gera várias tabelas: cada uma tem seu contrato e ingestion.yml; a transformação é um projeto só."""
+    return [generate(c, output_dir, llm_model, publish_s3, append=i > 0) for i, c in enumerate(contracts)]
+
+
+def generate(contract: dict, output_dir: str, llm_model: str = "", publish_s3: str = "",
+             append: bool = False) -> GenerationResult:
     """Grava o contrato em contracts/<dataset>/<tabela>.odcs.yaml e gera ingestion.yml + transformação.
 
-    output_dir vazio = default_output_dir().
+    output_dir vazio = default_output_dir(). append: acrescenta a tabela ao projeto de transformação que já
+    está na pasta (como o --append da linha de comando).
     """
     from framework.graph import build_graph
 
@@ -467,6 +572,12 @@ def generate(contract: dict, output_dir: str, llm_model: str = "", publish_s3: s
 
     state = _state(text, llm_model, naming_dir=str(out / "naming"), dry_run=False)
     state["output_dir"] = str(out)
+    project = f"{state['dataset']}-transformation"
+    if append and (out / project).exists():
+        pattern = "*.scala" if state["language"] == "scala" else "*.py"
+        state["transform_files"] = {f.relative_to(out).as_posix(): f.read_text(encoding="utf-8")
+                                    for f in (out / project).rglob(pattern)}
+        state["transform_project_dir"] = project
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
         final = build_graph().invoke(state)

@@ -55,14 +55,21 @@ ss.setdefault("naming", None)       # NamingResult
 ss.setdefault("naming_rows", [])
 ss.setdefault("proposals", {})      # coluna na origem → nome sugerido (heurística/LLM/contrato)
 ss.setdefault("selected", set())    # linhas marcadas na tabela de campos
-ss.setdefault("validation", None)   # ValidationResult
-ss.setdefault("result", None)       # GenerationResult
+ss.setdefault("validation", None)   # ValidationResult da tabela em edição
+# Várias tabelas no mesmo contrato: a tabela em edição fica em form/columns/naming_rows (como antes);
+# as outras ficam guardadas em tables (uma entrada por tabela, na ordem; active = posição da que está aberta)
+ss.setdefault("tables", [])
+ss.setdefault("active", 0)
+ss.setdefault("validations", [])    # ValidationResult por tabela (mesma ordem de tables)
+ss.setdefault("cross_checks", [])   # conferências entre as tabelas
+ss.setdefault("result", None)       # list[GenerationResult], uma por tabela
 ss.setdefault("flash", None)        # (nível, mensagem) mostrada uma vez
 ss.setdefault("focus", None)        # pendência destacada pelo "Corrigir"
 ss.setdefault("scroll", False)      # rola até o destaque uma vez
 ss.setdefault("editor_version", 0)  # muda quando as tabelas editáveis precisam recarregar
 # Base das tabelas editáveis: só muda ao trocar de etapa/importar (o editor guarda as edições sobre ela)
-ss.setdefault("base", {"servers": ss.servers, "columns": ss.columns, "naming_rows": ss.naming_rows})
+ss.setdefault("base", {"servers": ss.servers, "columns": ss.columns, "naming_rows": ss.naming_rows,
+                      "quality": ss.form.get("quality") or []})
 ss.setdefault("out_dir", "")  # vazio = service.default_output_dir()
 ss.setdefault("llm_model", resolve_model_name(""))
 
@@ -82,7 +89,8 @@ def _go(step: int, reload_widgets: bool = False):
     ss.step = step
     ss.max_step = max(ss.max_step, step)
     ss.focus = None
-    ss.base = {"servers": ss.servers, "columns": ss.columns, "naming_rows": ss.naming_rows}
+    ss.base = {"servers": ss.servers, "columns": ss.columns, "naming_rows": ss.naming_rows,
+               "quality": ss.form.get("quality") or []}
     ss.editor_version += 1
     if reload_widgets:
         for k in [k for k in ss if str(k).startswith("in_")]:
@@ -98,6 +106,55 @@ def current_contract(with_naming: bool = True) -> dict:
     return service.build_contract(ss.form, ss.servers, ss.columns, naming)
 
 
+# ── Várias tabelas ─────────────────────────────────────────────────────
+
+def _entry(form: dict, columns: list[dict], naming_rows=None, proposals=None, naming=None) -> dict:
+    return {"form": {**service.empty_table_form(), **form}, "columns": columns, "naming_rows": naming_rows or [],
+            "proposals": proposals or {}, "naming": naming}
+
+
+def _save_active():
+    """Guarda a tabela em edição na lista de tabelas."""
+    entry = _entry({k: ss.form.get(k) for k in service.TABLE_KEYS}, ss.columns, ss.naming_rows, ss.proposals,
+                   ss.naming)
+    if not ss.tables:
+        ss.tables, ss.active = [entry], 0
+    else:
+        ss.tables[ss.active] = entry
+
+
+def _load_table(i: int):
+    """Abre a tabela i para edição (os campos comuns do formulário continuam os mesmos)."""
+    t = ss.tables[i]
+    ss.active = i
+    ss.form.update(t["form"])
+    ss.columns, ss.naming_rows, ss.proposals, ss.naming = t["columns"], t["naming_rows"], t["proposals"], t["naming"]
+    ss.selected = set()
+    ss.validation = ss.validations[i] if i < len(ss.validations) else None
+
+
+def table_contract(t: dict) -> dict:
+    naming = service.naming_map(t["naming_rows"]) if t["naming_rows"] else None
+    return service.build_contract({**ss.form, **t["form"]}, ss.servers, t["columns"], naming)
+
+
+def all_contracts() -> list[dict]:
+    """Um data contract por tabela, com a tabela em edição atualizada."""
+    _save_active()
+    return [table_contract(t) for t in ss.tables]
+
+
+def all_valid() -> bool:
+    return (bool(ss.validations) and len(ss.validations) == len(ss.tables) and all(v.ok for v in ss.validations)
+            and not any(c.level == "error" for c in ss.cross_checks))
+
+
+def _set_tables(entries: list[dict], open_index: int = 0):
+    ss.tables = entries
+    ss.validations, ss.cross_checks, ss.validation = [], [], None
+    _load_table(open_index)
+
+
 # ── Ações (callbacks) ──────────────────────────────────────────────────
 
 def cb_reset():
@@ -106,27 +163,47 @@ def cb_reset():
 
 
 def cb_import_ddl():
+    """Importa uma ou várias tabelas. Tabela com o mesmo nome de uma já importada é substituída."""
     try:
-        form, rows = service.columns_from_ddl(ss.get("ddl_text", ""), ss.form.get("sourceType", "postgres"))
+        parsed = service.tables_from_ddl(ss.get("ddl_text", ""), ss.form.get("sourceType", "postgres"))
     except ValueError as e:
         _flash("error", f"Não consegui ler os campos: {e}")
         return
-    ss.form.update({k: v for k, v in form.items() if v and not ss.form.get(k)})
-    ss.columns, ss.naming_rows = rows, []
-    _flash("success", f"{len(rows)} colunas importadas.")
+    _save_active()
+    tables = [t for t in ss.tables if t["columns"]]  # a tabela vazia (ainda sem colunas) dá lugar às importadas
+    first = None
+    for form, rows in parsed:
+        name = form["table"].lower()
+        i = next((i for i, t in enumerate(tables) if str(t["form"].get("table") or "").lower() == name), None)
+        entry = _entry(form, rows)
+        if i is None:
+            tables.append(entry)
+            i = len(tables) - 1
+        else:
+            entry["form"]["id"] = tables[i]["form"]["id"]  # mesma tabela: mantém o id do contrato
+            tables[i] = entry
+        first = i if first is None else first
+    _set_tables(tables, first)
+    names = ", ".join(f["table"] for f, _ in parsed)
+    total = sum(len(r) for _, r in parsed)
+    _flash("success", f"{len(parsed)} tabela(s) importada(s): {names} ({total} colunas)." if len(parsed) > 1
+           else f"{total} colunas importadas.")
     _go(0, reload_widgets=True)
 
 
 def cb_import_schema_file():
-    """Arquivo com os campos (query, JSON, planilha, parquet...) → DDL na caixa de texto, e importa as colunas."""
-    up = ss.get("schema_upload")
-    if up is None:
+    """Um ou vários arquivos com os campos (DDL, query, JSON, planilha, parquet...) → DDL na caixa de texto."""
+    uploads = ss.get("schema_upload") or []
+    if not uploads:
         return
-    try:
-        ss.ddl_text = service.schema_to_ddl(up.getvalue(), up.name)
-    except (ValueError, UnicodeDecodeError) as e:
-        _flash("error", f"Não consegui ler {up.name}: {e}")
-        return
+    ddls = []
+    for up in uploads:
+        try:
+            ddls.append(service.schema_to_ddl(up.getvalue(), up.name))
+        except (ValueError, UnicodeDecodeError) as e:
+            _flash("error", f"Não consegui ler {up.name}: {e}")
+            return
+    ss.ddl_text = "\n\n".join(ddls)
     cb_import_ddl()
 
 
@@ -134,13 +211,47 @@ def cb_load_contract():
     up = ss.get("upload")
     if up is None:
         return
+    text = up.getvalue().decode("utf-8")
     try:
-        ss.form, ss.servers, ss.columns = service.form_from_contract(up.getvalue().decode("utf-8"))
+        entries = []
+        for name in service.table_names(text):
+            form, servers, columns = service.form_from_contract(text, name)
+            entries.append(_entry({k: form.get(k) for k in service.TABLE_KEYS}, columns))
     except ValueError as e:
         _flash("error", str(e))
         return
-    ss.naming_rows = []
-    _flash("success", "Contrato carregado.")
+    ss.form, ss.servers = form, servers
+    _set_tables(entries)
+    _flash("success", "Contrato carregado." if len(entries) == 1 else f"Contrato carregado com {len(entries)} tabelas.")
+    _go(0, reload_widgets=True)
+
+
+def cb_select_table(i: int):
+    _save_active()
+    _load_table(i)
+    if ss.step == 1 and ss.columns and not ss.naming_rows:
+        try:
+            _propose()
+        except Exception as e:  # noqa: BLE001 — mostra o motivo na tela
+            _flash("error", f"Não consegui montar o contrato: {e}")
+    _go(ss.step, reload_widgets=True)
+
+
+def cb_new_table():
+    _save_active()
+    ss.tables.append(_entry({"id": service.empty_form()["id"]}, []))
+    _load_table(len(ss.tables) - 1)
+    _go(0, reload_widgets=True)
+
+
+def cb_remove_table():
+    _save_active()
+    if len(ss.tables) < 2:
+        return
+    removed = ss.tables.pop(ss.active)
+    ss.validations, ss.cross_checks = [], []
+    _load_table(max(0, ss.active - 1))
+    _flash("info", f"Tabela {removed['form'].get('table') or '(sem nome)'} removida.")
     _go(0, reload_widgets=True)
 
 
@@ -191,8 +302,15 @@ def cb_naming_filter(name: str):
     ss.editor_version += 1
 
 
+def _run_validation():
+    contracts = all_contracts()
+    ss.validations = [service.validate(c) for c in contracts]
+    ss.cross_checks = service.cross_table_checks(contracts) if len(contracts) > 1 else []
+    ss.validation = ss.validations[ss.active]
+
+
 def cb_validate():
-    ss.validation = service.validate(current_contract())
+    _run_validation()
     _go(2)
 
 
@@ -214,7 +332,7 @@ def cb_fix(target: str):
 def cb_generate():
     prefix = ss.get("publish_prefix", "") if ss.get("publish") else ""
     try:
-        ss.result = service.generate(current_contract(), ss.out_dir, ss.llm_model, prefix)
+        ss.result = service.generate_all(all_contracts(), ss.out_dir, ss.llm_model, prefix)
     except Exception as e:  # noqa: BLE001
         _flash("error", f"Falha na geração: {e}")
 
@@ -241,7 +359,7 @@ def bound(widget, label: str, key: str, **kwargs):
 
 def _element_key(target: str) -> str:
     """Pendência → chave do elemento na tela (o Streamlit põe a classe st-key-<chave> no elemento)."""
-    return f"sec_{target}" if target in ("columns", "servers", "naming") else f"in_{target}"
+    return f"sec_{target}" if target in ("columns", "servers", "naming", "quality") else f"in_{target}"
 
 
 def highlight_focus(checks: list[service.Check]):
@@ -297,6 +415,35 @@ def preview_panel(contract_text: str, checks: list[service.Check]):
         checklist(checks, "health", detail=False)
 
 
+def _table_errors(i: int) -> int:
+    if ss.step == 2 and i < len(ss.validations):
+        return sum(c.level == "error" for c in ss.validations[i].checks)
+    return sum(c.level == "error" for c in service.health_checks(table_contract(ss.tables[i])))
+
+
+def table_bar():
+    """Tabelas do contrato: troca a tabela em edição; na etapa 1 adiciona ou remove tabelas."""
+    _save_active()
+    many = len(ss.tables) > 1
+    if not many and (ss.step != 0 or not ss.columns):
+        return
+    with st.container(horizontal=True, gap="small", vertical_alignment="center", key="tables_bar"):
+        if many:
+            st.markdown(f"**Tabelas** :gray[({len(ss.tables)})]", width="content")
+            for i, t in enumerate(ss.tables):
+                errors = _table_errors(i)
+                st.button((t["form"].get("table") or "(sem nome)") + (f" · {errors}" if errors else ""),
+                          key=f"tbl_{i}", type="primary" if i == ss.active else "secondary",
+                          icon=":material/error:" if errors else ":material/table:",
+                          help=f"{errors} pendência(s)" if errors else "Sem pendências",
+                          on_click=cb_select_table, args=(i,))
+        if ss.step == 0:
+            st.button("Adicionar tabela", icon=":material/add:", type="tertiary", on_click=cb_new_table,
+                      help="Outra tabela no mesmo dataset (mesma origem e servidores). Ou importe várias DDLs.")
+            if many:
+                st.button("Remover esta tabela", icon=":material/delete:", type="tertiary", on_click=cb_remove_table)
+
+
 LLM_ICONS = {"ok": ":material/check_circle:", "warning": ":material/help:", "error": ":material/link_off:"}
 
 
@@ -316,15 +463,17 @@ def step_contract():
         with tab_ddl:
             st.text_area("DDL", key="ddl_text", height=160, label_visibility="collapsed",
                          placeholder="CREATE TABLE public.cliente (\n  id INTEGER PRIMARY KEY,\n  ...\n);\n\n"
+                                     "CREATE TABLE public.pedido (...);   ← várias tabelas de uma vez\n\n"
                                      "ou SELECT CAST(id AS INT) AS id, nome::varchar FROM cliente\n"
                                      "ou JSON (Avro, JSON Schema, StructType) ou uma lista campo;tipo;descrição")
             st.button("Importar colunas", disabled=not ss.get("ddl_text", "").strip(), on_click=cb_import_ddl)
         with tab_file:
-            st.file_uploader("Arquivo com os campos", key="schema_upload", label_visibility="collapsed",
-                             type=["sql", "txt", "json", "avsc", "jsonl", "csv", "tsv", "xlsx", "parquet", "md"])
-            st.caption("DDL ou query (.sql), Avro/JSON Schema/StructType (.json, .avsc), lista de campos com nome e "
-                       "tipo (.csv, .xlsx, .md) ou arquivo de dados (.parquet, .csv: tipos inferidos).")
-            st.button("Importar colunas do arquivo", disabled=ss.get("schema_upload") is None,
+            st.file_uploader("Arquivos com os campos", key="schema_upload", label_visibility="collapsed",
+                             accept_multiple_files=True, type=["sql", "txt", "json", "avsc", "jsonl", "csv", "tsv", "xlsx", "parquet", "md"])
+            st.caption("Um ou vários arquivos (uma tabela por arquivo, ou várias num .sql): DDL ou query (.sql), "
+                       "Avro/JSON Schema/StructType (.json, .avsc), lista de campos com nome e tipo (.csv, .xlsx, .md) "
+                       "ou arquivo de dados (.parquet, .csv: tipos inferidos).")
+            st.button("Importar colunas dos arquivos", disabled=not ss.get("schema_upload"),
                       on_click=cb_import_schema_file)
         with tab_contract:
             st.file_uploader("Data contract", type=["yaml", "yml"], key="upload", label_visibility="collapsed")
@@ -432,11 +581,8 @@ def step_contract():
         if any(c.get("encrypt") for c in ss.columns):
             field_input("Secret da chave de criptografia (ARN) *", "cryptographySecretArn")
 
-        c1, c2 = st.columns(2)
-        with c1:
-            bound(st.checkbox, "Bloquear a carga se a chave vier duplicada", "qualityUniqueKey")
-        with c2:
-            bound(st.checkbox, "Avisar se a carga vier vazia", "qualityNotEmpty")
+
+    quality_rules(names)
 
     missing = [label for label, ok in [("dataset", ss.form.get("dataset")), ("tabela", ss.form.get("table")),
                                        ("colunas", ss.columns)] if not ok]
@@ -444,6 +590,41 @@ def step_contract():
               disabled=bool(missing), on_click=cb_to_fields)
     if missing:
         st.caption(f"Falta preencher: {', '.join(missing)}.")
+
+
+def quality_rules(names: list[str]):
+    """Regras de qualidade da tabela: rodam no orquestrador antes de gravar na raw."""
+    labels, severities = service.QUALITY_RULES, service.SEVERITIES
+    by_label = {v: k for k, v in labels.items()}
+    by_severity = {v: k for k, v in severities.items()}
+    with st.container(border=True, key="sec_quality"):
+        st.markdown("##### :material/rule: Regras de qualidade")
+        st.caption("Conferidas a cada carga, antes de gravar na raw. **Bloquear a carga**: nada é gravado se a regra "
+                   "falhar. **Só avisar**: registra no log e segue. Em *Sem duplicados*, sem coluna escolhida vale a "
+                   "chave primária.")
+        view = [{"rule": labels.get(r.get("rule"), labels["notNull"]),
+                 "columns": [c for c in r.get("columns") or [] if c in names],
+                 "min": r.get("min"), "severity": severities.get(r.get("severity"), severities["error"])}
+                for r in ss.base["quality"]]
+        edited = st.data_editor(
+            pd.DataFrame(view, columns=["rule", "columns", "min", "severity"]), num_rows="dynamic",
+            use_container_width=True, key=f"quality_{ss.editor_version}",
+            column_config={
+                "rule": st.column_config.SelectboxColumn("Regra", options=list(labels.values()), required=True,
+                                                         default=labels["notNull"], width="medium"),
+                "columns": st.column_config.MultiselectColumn("Colunas", options=names, width="large",
+                                                              help="Para Não pode vir nulo e Sem duplicados"),
+                "min": st.column_config.NumberColumn("Mínimo de linhas", min_value=0, step=1, format="%d",
+                                                     help="Só para Quantidade mínima de linhas"),
+                "severity": st.column_config.SelectboxColumn("Se falhar", options=list(severities.values()),
+                                                             required=True, default=severities["error"]),
+            })
+        rules = [{"rule": by_label.get(r["rule"], "notNull"), "columns": _as_list(r.get("columns")),
+                  "min": r.get("min"), "severity": by_severity.get(r.get("severity"), "error")}
+                 for r in _records(edited) if r.get("rule")]
+        ss.form["quality"] = rules
+        if any(r["rule"] == "notNull" and not r["columns"] for r in rules):
+            st.caption(":orange[:material/warning: *Não pode vir nulo* sem coluna escolhida é ignorada.]")
 
 
 # ── Etapa 2: Campos e nomenclatura ─────────────────────────────────────
@@ -527,21 +708,29 @@ def step_fields():
 # ── Etapa 3: Validação ─────────────────────────────────────────────────
 
 def step_validation():
-    if ss.validation is None:
-        ss.validation = service.validate(current_contract())
+    if ss.validation is None or len(ss.validations) != len(ss.tables):
+        _run_validation()
     v = ss.validation
-    errors = sum(c.level == "error" for c in v.checks)
-    warnings = sum(c.level == "warning" for c in v.checks)
+    every = [c for x in ss.validations for c in x.checks] + ss.cross_checks
+    errors = sum(c.level == "error" for c in every)
+    warnings = sum(c.level == "warning" for c in every)
+    many = len(ss.tables) > 1
+    where = f" em {len(ss.tables)} tabelas" if many else ""
     if errors:
-        st.error(f"{errors} problema(s) impedem a geração. Use Corrigir para ir até o campo.")
+        st.error(f"{errors} problema(s){where} impedem a geração. Use Corrigir para ir até o campo"
+                 + (" (troque de tabela na barra acima)." if many else "."))
     elif warnings:
-        st.warning(f"Tudo certo para gerar, com {warnings} aviso(s).")
+        st.warning(f"Tudo certo para gerar{where}, com {warnings} aviso(s).")
     else:
-        st.success("Tudo certo para gerar.")
+        st.success(f"Tudo certo para gerar{where}.")
+    if ss.cross_checks:
+        with st.container(border=True):
+            st.markdown("**Entre as tabelas**")
+            checklist(ss.cross_checks, "cross")
 
     left, right = st.columns([1, 1.4], gap="large")
     with left, st.container(border=True):
-        st.markdown("**Checklist**")
+        st.markdown(f"**Checklist** · :gray[{ss.form.get('table')}]" if many else "**Checklist**")
         checklist(v.checks, "checks")
     with right, st.container(border=True):
         st.markdown("**Pré-visualização**")
@@ -571,14 +760,16 @@ def step_validation():
     nav.button("Contrato", icon=":material/arrow_back:", on_click=cb_nav, args=(0,))
     nav.button("Campos", icon=":material/arrow_back:", on_click=cb_nav, args=(1,))
     nav.button("Validar de novo", icon=":material/refresh:", on_click=cb_validate)
-    nav.button("Próximo: gerar", icon=":material/arrow_forward:", type="primary", disabled=not v.ok,
+    nav.button("Próximo: gerar", icon=":material/arrow_forward:", type="primary", disabled=not all_valid(),
                on_click=cb_nav, args=(3,))
 
 
 # ── Etapa 4: Geração ───────────────────────────────────────────────────
 
 def step_generation():
-    dataset, table = ss.form["dataset"], ss.form["table"]
+    _save_active()
+    dataset = ss.form["dataset"]
+    tables = [t["form"].get("table") or "<tabela>" for t in ss.tables]
     if ss.result is None:
         with st.container(border=True):
             st.markdown("##### :material/folder_open: Onde gravar")
@@ -587,12 +778,14 @@ def step_generation():
             st.checkbox("Enviar o ingestion.yml para o S3", key="publish")
             if ss.get("publish"):
                 st.text_input("Prefixo S3", key="publish_prefix", placeholder="s3://bucket/ingestion-config/")
+            each = "{" + ",".join(tables) + "}" if len(tables) > 1 else tables[0]
             st.markdown(
-                "Serão gravados na pasta:\n"
-                f"- `contracts/{dataset}/{table}.odcs.yaml` — o data contract\n"
-                f"- `ingestion-config/{dataset}/{table}.ingestion.yml` — para o orquestrador\n"
-                f"- `{dataset}-transformation/` — projeto "
-                f"{service.LANGUAGE_LABELS[ss.form.get('transformationLanguage') or 'pyspark']} da transformação "
+                "Serão gravados na pasta"
+                + (f" ({len(tables)} tabelas: {', '.join(tables)})" if len(tables) > 1 else "") + ":\n"
+                f"- `contracts/{dataset}/{each}.odcs.yaml` — o data contract de cada tabela\n"
+                f"- `ingestion-config/{dataset}/{each}.ingestion.yml` — para o orquestrador\n"
+                f"- `{dataset}-transformation/` — um projeto "
+                f"{service.LANGUAGE_LABELS[ss.form.get('transformationLanguage') or 'pyspark']} com todas as tabelas "
                 "(com git init)\n"
                 "- `naming/` — nomenclatura revisada")
         bad_prefix = bool(ss.get("publish")) and not str(ss.get("publish_prefix", "")).startswith("s3://")
@@ -602,25 +795,33 @@ def step_generation():
                    on_click=cb_generate)
         return
 
-    r = ss.result
-    st.success(f"Pronto! {len(r.files) + 1} arquivos gravados em `{r.output_dir}`.")
-    for uri in r.published:
-        st.info(f"Enviado para {uri}")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.download_button("Data contract (.odcs.yaml)", r.contract_path.read_bytes(), r.contract_path.name,
-                           icon=":material/download:", use_container_width=True)
-    ingestion = next((f for f in r.files if f.endswith(".ingestion.yml")), None)
-    with c2:
-        if ingestion:
-            st.download_button("ingestion.yml", (r.output_dir / ingestion).read_bytes(), ingestion.split("/")[-1],
-                               icon=":material/download:", use_container_width=True)
-    st.markdown("**Próximos passos:** envie o `ingestion.yml` ao S3 lido pelo orquestrador (se ainda não enviou) e "
+    results = ss.result
+    out = results[0].output_dir
+    files = sorted({f for r in results for f in r.files})
+    contracts = [r.contract_path.relative_to(out).as_posix() for r in results]
+    st.success(f"Pronto! {len(files) + len(contracts)} arquivos gravados em `{out}`"
+               + (f" ({len(results)} tabelas)." if len(results) > 1 else "."))
+    for r in results:
+        for uri in r.published:
+            st.info(f"Enviado para {uri}")
+    for r in results:
+        table = r.contract_path.stem.removesuffix(".odcs")
+        ingestion = next((f for f in r.files if f.endswith(f"/{table}.ingestion.yml")), None)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button(f"{table} · data contract", r.contract_path.read_bytes(), r.contract_path.name,
+                               icon=":material/download:", use_container_width=True, key=f"dl_c_{table}")
+        with c2:
+            if ingestion:
+                st.download_button(f"{table} · ingestion.yml", (out / ingestion).read_bytes(),
+                                   ingestion.split("/")[-1], icon=":material/download:", use_container_width=True,
+                                   key=f"dl_i_{table}")
+    st.markdown("**Próximos passos:** envie os `ingestion.yml` ao S3 lido pelo orquestrador (se ainda não enviou) e "
                 f"suba o projeto `{dataset}-transformation`.")
     with st.expander("Arquivos gerados"):
-        st.code("\n".join([r.contract_path.relative_to(r.output_dir).as_posix(), *r.files]), language="text")
+        st.code("\n".join([*contracts, *files]), language="text")
     with st.expander("Log da geração"):
-        st.code(r.log or "(vazio)", language="text")
+        st.code("\n".join(r.log for r in results) or "(vazio)", language="text")
     st.button("Criar outro contrato", type="primary", on_click=cb_reset)
 
 
@@ -631,6 +832,7 @@ if ss.flash:
     level, message = ss.flash
     getattr(st, level)(message)
     ss.flash = None
+bar = st.container()  # tabelas do contrato: preenchida depois da etapa, com o estado já atualizado
 
 STEP_VIEWS = [step_contract, step_fields, step_validation, step_generation]
 if ss.step <= 1:
@@ -646,6 +848,9 @@ else:
     checks = service.health_checks(current_contract())
     if ss.validation is not None and ss.step == 2:
         checks = ss.validation.checks
+if ss.step <= 2:
+    with bar:
+        table_bar()
 highlight_focus(checks)
 
 # Barra do topo: dataset / tabela e o status do contrato
@@ -663,8 +868,8 @@ else:
 
 with st.sidebar:
     st.title("Data Contract Studio")
-    st.caption("Crie o data contract da tabela e gere o ingestion.yml e o projeto de transformação.")
-    can_generate = ss.validation is not None and ss.validation.ok
+    st.caption("Crie o data contract das tabelas e gere o ingestion.yml e o projeto de transformação.")
+    can_generate = all_valid()
     for i, (title, sub, icon) in enumerate(STEPS):
         done = i < ss.step
         label = f"{i + 1}. {title}" + (f"  ·  {pending}" if i == 2 and pending else "")
