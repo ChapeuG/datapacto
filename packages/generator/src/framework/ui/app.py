@@ -10,6 +10,7 @@ não precisa de st.rerun().
 from __future__ import annotations
 
 import math
+import uuid
 
 import pandas as pd
 import streamlit as st
@@ -592,39 +593,109 @@ def step_contract():
         st.caption(f"Falta preencher: {', '.join(missing)}.")
 
 
+QUALITY_ICONS = {"notNull": ":material/block:", "unique": ":material/fingerprint:", "rowCount": ":material/functions:"}
+QUALITY_HINTS = {"notNull": "A coluna não pode chegar vazia", "unique": "Uma linha por chave, sem repetição",
+                 "rowCount": "A carga precisa trazer um mínimo de linhas"}
+
+
+def _rules() -> list[dict]:
+    rules = ss.form.get("quality")
+    if rules is None:
+        rules = ss.form["quality"] = service.default_quality()
+    for r in rules:
+        r.setdefault("uid", uuid.uuid4().hex[:8])
+    return rules
+
+
+def cb_add_rule(kind: str, columns: list[str] | None = None):
+    _rules().append({"uid": uuid.uuid4().hex[:8], "rule": kind, "columns": list(columns or []),
+                     "min": 1 if kind == "rowCount" else None,
+                     "severity": "warning" if kind == "rowCount" else "error"})
+
+
+def cb_remove_rule(uid: str):
+    ss.form["quality"] = [r for r in _rules() if r["uid"] != uid]
+
+
+def _rule_sentence(r: dict, pk: list[str]) -> str:
+    """O que a regra faz, em uma frase (ou o que falta preencher, em laranja)."""
+    then = "a carga é bloqueada" if r["severity"] == "error" else "só um aviso no log"
+    cols = ", ".join(f"`{c}`" for c in r["columns"])
+    if r["rule"] == "notNull":
+        if not r["columns"]:
+            return ":orange[:material/warning: Escolha ao menos uma coluna: sem coluna a regra é ignorada.]"
+        return f"Se {cols} vier nulo, {then}."
+    if r["rule"] == "unique":
+        if not r["columns"] and not pk:
+            return ":orange[:material/warning: Sem chave primária marcada: escolha as colunas.]"
+        key = cols or ", ".join(f"`{c}`" for c in pk) + " (chave primária)"
+        return f"Se {key} se repetir, {then}."
+    n = int(r.get("min") or 0)
+    return f"Se a carga trouxer menos de {n} linha{'s' if n != 1 else ''}, {then}."
+
+
+def _bind(key: str, value):
+    """Valor inicial do widget de uma regra (as chaves mudam com a tabela/importação via editor_version)."""
+    if key not in ss:
+        ss[key] = value
+    return key
+
+
 def quality_rules(names: list[str]):
-    """Regras de qualidade da tabela: rodam no orquestrador antes de gravar na raw."""
-    labels, severities = service.QUALITY_RULES, service.SEVERITIES
-    by_label = {v: k for k, v in labels.items()}
-    by_severity = {v: k for k, v in severities.items()}
+    """Regras de qualidade da tabela, em cartões: rodam no orquestrador antes de gravar na raw."""
+    rules = _rules()
+    pk = [c["name"] for c in ss.columns if c.get("primaryKey")]
+    v = ss.editor_version
     with st.container(border=True, key="sec_quality"):
-        st.markdown("##### :material/rule: Regras de qualidade")
-        st.caption("Conferidas a cada carga, antes de gravar na raw. **Bloquear a carga**: nada é gravado se a regra "
-                   "falhar. **Só avisar**: registra no log e segue. Em *Sem duplicados*, sem coluna escolhida vale a "
-                   "chave primária.")
-        view = [{"rule": labels.get(r.get("rule"), labels["notNull"]),
-                 "columns": [c for c in r.get("columns") or [] if c in names],
-                 "min": r.get("min"), "severity": severities.get(r.get("severity"), severities["error"])}
-                for r in ss.base["quality"]]
-        edited = st.data_editor(
-            pd.DataFrame(view, columns=["rule", "columns", "min", "severity"]), num_rows="dynamic",
-            use_container_width=True, key=f"quality_{ss.editor_version}",
-            column_config={
-                "rule": st.column_config.SelectboxColumn("Regra", options=list(labels.values()), required=True,
-                                                         default=labels["notNull"], width="medium"),
-                "columns": st.column_config.MultiselectColumn("Colunas", options=names, width="large",
-                                                              help="Para Não pode vir nulo e Sem duplicados"),
-                "min": st.column_config.NumberColumn("Mínimo de linhas", min_value=0, step=1, format="%d",
-                                                     help="Só para Quantidade mínima de linhas"),
-                "severity": st.column_config.SelectboxColumn("Se falhar", options=list(severities.values()),
-                                                             required=True, default=severities["error"]),
-            })
-        rules = [{"rule": by_label.get(r["rule"], "notNull"), "columns": _as_list(r.get("columns")),
-                  "min": r.get("min"), "severity": by_severity.get(r.get("severity"), "error")}
-                 for r in _records(edited) if r.get("rule")]
-        ss.form["quality"] = rules
-        if any(r["rule"] == "notNull" and not r["columns"] for r in rules):
-            st.caption(":orange[:material/warning: *Não pode vir nulo* sem coluna escolhida é ignorada.]")
+        head = st.container(horizontal=True, vertical_alignment="center")
+        head.markdown("##### :material/rule: Regras de qualidade", width="content")
+        blocking = sum(r["severity"] == "error" for r in rules)
+        if rules:
+            head.badge(f"{len(rules)} regra{'s' if len(rules) > 1 else ''}", color="blue")
+        if blocking:
+            head.badge(f"{blocking} bloqueia{'m' if blocking > 1 else ''} a carga", icon=":material/lock:",
+                       color="red")
+        st.caption("Conferidas a cada carga, antes de gravar na raw.")
+
+        if not rules:
+            st.info("Nenhuma regra: a carga é gravada sem conferência. Adicione uma abaixo.", icon=":material/info:")
+        for r in rules:
+            uid = r["uid"]
+            with st.container(border=True, key=f"rule_{uid}", gap="small"):
+                row = st.container(horizontal=True, vertical_alignment="center", gap="small")
+                row.markdown(f"{QUALITY_ICONS[r['rule']]} **{service.QUALITY_RULES[r['rule']]}**  \n"
+                             f":gray[:small[{QUALITY_HINTS[r['rule']]}]]", width="stretch")
+                block = _bind(f"q{v}_{uid}_block", r["severity"] == "error")
+                row.toggle("Bloquear a carga", key=block, width="content",
+                           help="Ligado: nada é gravado se a regra falhar. Desligado: só registra um aviso no log.")
+                r["severity"] = "error" if ss[block] else "warning"
+                row.button("", icon=":material/delete:", key=f"del_{uid}", type="tertiary", help="Remover regra",
+                           on_click=cb_remove_rule, args=(uid,))
+                if r["rule"] == "rowCount":
+                    low = _bind(f"q{v}_{uid}_min", int(r.get("min") or 1))
+                    st.number_input("Mínimo de linhas", min_value=0, step=1, key=low, width=220)
+                    r["min"] = ss[low]
+                else:
+                    cols = _bind(f"q{v}_{uid}_cols", [c for c in r["columns"] if c in names])
+                    ss[cols] = [c for c in ss[cols] if c in names]
+                    placeholder = ("Vazio = chave primária" + (f" ({', '.join(pk)})" if pk else "")
+                                   if r["rule"] == "unique" else "Escolha as colunas")
+                    st.multiselect("Colunas", options=names, key=cols, placeholder=placeholder,
+                                   label_visibility="collapsed")
+                    r["columns"] = ss[cols]
+                st.caption(_rule_sentence(r, pk))
+
+        add = st.container(horizontal=True, gap="small", vertical_alignment="center")
+        add.markdown(":gray[Adicionar regra]", width="content")
+        for kind, label in service.QUALITY_RULES.items():
+            add.button(label, icon=":material/add:", key=f"add_{kind}", on_click=cb_add_rule, args=(kind,))
+        covered = {c for r in rules if r["rule"] == "notNull" for c in r["columns"]}
+        required = [c["name"] for c in ss.columns if c.get("required") and not c.get("primaryKey")
+                    and c["name"] not in covered]
+        if required:
+            add.button(f"Obrigatórias não podem vir nulo ({len(required)})", icon=":material/auto_fix_high:",
+                       type="tertiary", key="add_required", on_click=cb_add_rule, args=("notNull", required),
+                       help="Cria uma regra com as colunas marcadas como obrigatórias: " + ", ".join(required))
 
 
 # ── Etapa 2: Campos e nomenclatura ─────────────────────────────────────
