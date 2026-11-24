@@ -1,0 +1,65 @@
+# Gerado pelo datapacto a partir do data contract. Não edite à mão: altere o contrato e gere de novo.
+# Lido pelo datapacto-orchestrator (valores com {env} são resolvidos por --env).
+apiVersion: ingestion/v1
+kind: Ingestion
+contract:
+  id: 8b2b1205-c2d5-40fb-8da3-dd207fb39bb3
+  version: 1.0.0
+  status: draft
+dataset: loja
+table: pedido
+description: Pedidos feitos pelos clientes da loja
+source:
+  type: postgres
+  table: public.pedido
+  servers:
+    demo:
+      host: postgres
+      port: 5432
+      database: loja
+      secretId: env:DEMO_DB
+load:
+  mode: incremental
+  incrementalColumns:
+  - created_at
+  fetchSize: 150000
+  parallel:
+    days: 1
+    queries: 1
+    column: created_at
+columns:
+- name: id
+  type: integer
+  physicalType: INTEGER
+  primaryKey: true
+  required: true
+- name: customer_id
+  type: integer
+  physicalType: INTEGER
+  required: true
+- name: status
+  type: string
+  physicalType: VARCHAR(20)
+  required: true
+- name: total_amount
+  type: number
+  physicalType: NUMERIC(12,2)
+  required: true
+- name: created_at
+  type: timestamp
+  physicalType: TIMESTAMP
+  required: true
+target:
+  database: raw_loja
+  table: pedido
+  partitionColumn: dt_ingestao
+  format: json
+  compression: gzip
+quality:
+- check: unique
+  columns:
+  - id
+  severity: error
+- check: rowCount
+  mustBeGreaterOrEqualTo: 1
+  severity: warning

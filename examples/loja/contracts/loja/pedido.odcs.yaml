@@ -1,0 +1,96 @@
+apiVersion: v3.2.0
+kind: DataContract
+id: 8b2b1205-c2d5-40fb-8da3-dd207fb39bb3
+name: loja-pedido
+version: 1.0.0
+status: draft
+domain: vendas
+dataProduct: loja
+description:
+  purpose: Pedidos feitos na loja fictícia do exemplo
+  usage: Faturamento diário e ticket médio por cliente
+  limitations: Valores em reais; pedidos cancelados continuam na tabela com status CANCELADO
+tags:
+- exemplo
+- loja
+team:
+  name: dados-vendas
+  description: Time fictício dono do exemplo
+  members:
+  - username: dono.exemplo
+    role: owner
+    dateIn: '2026-01-01'
+servers:
+- server: loja-demo
+  environment: demo
+  type: postgres
+  host: postgres
+  port: 5432
+  database: loja
+  schema: public
+  customProperties:
+  - property: secretId
+    value: env:DEMO_DB
+schema:
+- name: pedido
+  physicalName: public.pedido
+  physicalType: table
+  businessName: Pedido
+  description: Pedidos feitos pelos clientes da loja
+  dataGranularityDescription: Uma linha por pedido
+  customProperties:
+  - property: loadMode
+    value: incremental
+  - property: incrementalColumns
+    value:
+    - created_at
+  - property: rawPartitionColumn
+    value: dt_ingestao
+  properties:
+  - name: id
+    logicalType: integer
+    physicalType: INTEGER
+    description: Identificador do pedido
+    primaryKey: true
+    primaryKeyPosition: 1
+    required: true
+  - name: customer_id
+    logicalType: integer
+    physicalType: INTEGER
+    description: Cliente que fez o pedido
+    required: true
+    relationships:
+    - type: foreignKey
+      to: cliente.id
+  - name: status
+    logicalType: string
+    physicalType: VARCHAR(20)
+    description: Situação do pedido (ABERTO, PAGO, CANCELADO)
+    required: true
+  - name: total_amount
+    logicalType: number
+    physicalType: NUMERIC(12,2)
+    description: Valor total do pedido em reais
+    required: true
+  - name: created_at
+    logicalType: timestamp
+    physicalType: TIMESTAMP
+    description: Data e hora do pedido
+    required: true
+    partitioned: true
+    partitionKeyPosition: 1
+  quality:
+  - metric: duplicateValues
+    mustBe: 0
+    severity: error
+    description: Sem duplicados na chave
+    arguments:
+      properties:
+      - id
+  - metric: rowCount
+    mustBeGreaterOrEqualTo: 1
+    severity: warning
+    description: Pelo menos 1 linha na carga
+customProperties:
+- property: transformationLanguage
+  value: pyspark

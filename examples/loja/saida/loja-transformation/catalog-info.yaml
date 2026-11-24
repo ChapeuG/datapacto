@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: loja-transformation
+  description: loja-transformation
+  annotations:
+    sonarqube.org/project-key: loja-transformation
+  tags: []
+spec:
+  owner: group:default/engenharia-dados
+  type: other
+  lifecycle: development

@@ -6,8 +6,18 @@ __pycache__/
 dist/
 build/
 .claude/
-# saídas geradas quando o framework roda dentro da própria pasta
-naming/
-ingestion-config/
-contracts/
-*-transformation/
+.idea/
+.vscode/
+
+# Spark local (testes do orquestrador)
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Saídas geradas quando o gerador roda dentro do próprio repositório
+/naming/
+/ingestion-config/
+/*-transformation/
+/packages/*/naming/
+/packages/*/ingestion-config/
+/packages/*/*-transformation/
