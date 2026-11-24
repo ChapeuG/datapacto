@@ -29,6 +29,7 @@ class RunParams:
     start_date: str = ""
     end_date: str = ""
     ingestion_type: str = dates.NORMAL
+    catalog: bool = True  # False: grava na raw sem registrar a tabela no Glue/Athena (execução local)
 
     @property
     def ongoing(self) -> bool:
@@ -129,7 +130,7 @@ def run_table(spark: SparkSession, config: IngestionConfig, params: RunParams) -
                     result.partitions.append(partition)
                     schema = df.schema
 
-        if schema is not None:
+        if schema is not None and params.catalog:
             catalog.ensure_table(spark, config, schema, result.partitions)
     except Exception as e:  # noqa: BLE001 — uma tabela com erro não derruba as outras
         log.exception("[%s] falhou", config.key)

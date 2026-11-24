@@ -1,4 +1,4 @@
-"""Lógica da interface (framework.ui.service): formulário → contrato → nomenclatura → validação → geração."""
+"""Lógica da interface (datapacto.ui.service): formulário → contrato → nomenclatura → validação → geração."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from pathlib import Path
 
 import yaml
 
-from framework.parsers.contract_parser import custom_props, load_contract, resolve_table
-from framework.ui import service
+from datapacto.parsers.contract_parser import custom_props, load_contract, resolve_table
+from datapacto.ui import service
 
 DDL = """
 CREATE TABLE public.cliente (
@@ -172,7 +172,7 @@ def test_tables_from_ddl_reads_every_table():
 
 
 def test_quality_rules_become_odcs_and_ingestion_checks():
-    from framework.ingestion_config import _quality
+    from datapacto.ingestion_config import _quality
 
     form, servers, rows = _filled()
     form["quality"] = [

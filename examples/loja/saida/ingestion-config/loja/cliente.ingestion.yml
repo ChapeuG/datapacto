@@ -1,0 +1,79 @@
+# Gerado pelo datapacto a partir do data contract. Não edite à mão: altere o contrato e gere de novo.
+# Lido pelo datapacto-orchestrator (valores com {env} são resolvidos por --env).
+apiVersion: ingestion/v1
+kind: Ingestion
+contract:
+  id: 7077362c-132e-4c9d-98ca-d880215bc805
+  version: 1.0.0
+  status: draft
+dataset: loja
+table: cliente
+description: Clientes cadastrados na loja
+source:
+  type: postgres
+  table: public.cliente
+  servers:
+    demo:
+      host: postgres
+      port: 5432
+      database: loja
+      secretId: env:DEMO_DB
+load:
+  mode: incremental
+  incrementalColumns:
+  - created_at
+  fetchSize: 150000
+  parallel:
+    days: 1
+    queries: 1
+    column: created_at
+columns:
+- name: id
+  type: integer
+  physicalType: INTEGER
+  primaryKey: true
+  required: true
+- name: name
+  type: string
+  physicalType: VARCHAR(120)
+  required: true
+- name: email
+  type: string
+  physicalType: VARCHAR(160)
+  required: true
+- name: document
+  type: string
+  physicalType: VARCHAR(14)
+  required: true
+  encrypt: true
+- name: city
+  type: string
+  physicalType: VARCHAR(80)
+- name: created_at
+  type: timestamp
+  physicalType: TIMESTAMP
+  required: true
+target:
+  database: raw_loja
+  table: cliente
+  partitionColumn: dt_ingestao
+  format: json
+  compression: gzip
+encryption:
+  algorithm: AES/ECB
+  secretArn: env:DEMO_AES
+  secretField: AES_KEY
+  columns:
+  - document
+quality:
+- check: notNull
+  columns:
+  - email
+  severity: error
+- check: unique
+  columns:
+  - id
+  severity: error
+- check: rowCount
+  mustBeGreaterOrEqualTo: 1
+  severity: warning

@@ -1,15 +1,42 @@
-"""Secrets Manager (substitui o SecretManagerUtils da lib utils)."""
+"""Secrets: AWS Secrets Manager ou, para rodar sem AWS, uma variável de ambiente ou um arquivo local.
+
+O secretId do contrato escolhe a origem:
+
+- `env:NOME`: JSON na variável de ambiente NOME (demonstração local, CI);
+- `file:caminho.json`: JSON num arquivo local;
+- qualquer outro valor: id ou ARN no AWS Secrets Manager.
+"""
 
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
+
+ENV_PREFIX = "env:"
+FILE_PREFIX = "file:"
+
+
+def _raw_secret(secret_id: str) -> str:
+    if secret_id.startswith(ENV_PREFIX):
+        name = secret_id[len(ENV_PREFIX):]
+        if name not in os.environ:
+            raise ValueError(f"Secret {secret_id}: variável de ambiente {name} não definida")
+        return os.environ[name]
+    if secret_id.startswith(FILE_PREFIX):
+        path = Path(secret_id[len(FILE_PREFIX):])
+        if not path.is_file():
+            raise ValueError(f"Secret {secret_id}: arquivo {path} não existe")
+        return path.read_text(encoding="utf-8")
+
+    import boto3
+
+    return boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)["SecretString"]
 
 
 def get_secret(secret_id: str) -> dict:
     """Secret em JSON (username, password, host, port, dbname, url...)."""
-    import boto3
-
-    value = boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)["SecretString"]
+    value = _raw_secret(secret_id)
     try:
         data = json.loads(value)
     except json.JSONDecodeError as e:

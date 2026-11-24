@@ -329,7 +329,7 @@ draft ──▶ em revisão ──▶ active ──▶ deprecated ──▶ reti
 ```
 
 Os pacotes continuam separados porque têm públicos diferentes (o orquestrador roda no EMR, sem as dependências do
-gerador). Conforme as fases avançam, entram novos pacotes: `core/` (modelo do contrato, rulebook, bundle) e
+gerador). Conforme os marcos avançam, entram novos pacotes: `core/` (modelo do contrato, rulebook, bundle) e
 `publishers/` (um por destino), e o `rules/examples/` com o rulebook de exemplo.
 
 Licença sugerida: **Apache 2.0** (a mesma do ODCS). Contribuição por PR, com CI rodando os testes e o
@@ -337,28 +337,40 @@ Licença sugerida: **Apache 2.0** (a mesma do ODCS). Contribuição por PR, com 
 
 ## 15. Roadmap
 
-| Fase | Entrega | Resultado para quem usa |
-|---|---|---|
-| **0 — Base** (já feito) | Contrato ODCS, Studio de 4 etapas, `ingestion.yml`, orquestrador, transformação PySpark/Scala, monorepo | Uma tabela nova sai com pipeline gerada |
-| **1 — Regras de modelagem** | Rulebook em YAML; padrões atuais migrados para ele; tela de upload e revisão (PDF/XLSX/DOCX) | Cada empresa usa o próprio padrão, sem mexer no código |
-| **2 — Bundle e registro** | Compilação do bundle completo; registro em S3/Git; versionamento e detecção de quebra de compatibilidade | Um lugar só com tudo de cada contrato e versão |
-| **3 — Visão própria** | Eventos de carga gravados pelo orquestrador; Catálogo e Saúde no Studio | Catálogo e monitoria funcionando sem nenhuma ferramenta externa |
-| **4 — AWS** | Métricas no CloudWatch (métricas, alarmes, dashboard); Glue Data Catalog; depois Lake Formation e SageMaker Catalog | O mesmo catálogo e monitoria dentro da AWS |
-| **5 — Mais destinos** | Datadog, Grafana, Quick Suite, notificações | Funciona com as ferramentas que a empresa já tem |
-| **6 — Multi-cloud e comunidade** | Provedores GCP e Azure; documentação de plugins, exemplos, site | Outras nuvens; terceiros criam publicadores e regras |
+Resumo dos marcos. A lista de tarefas de cada um, na ordem de execução, está no [roadmap](ROADMAP.md).
 
-Também ficam na fila os itens já citados antes: qualidade e SLA mais ricos (fase 3) e linhagem (fase 4/5).
+| Marco | Entrega | Resultado para quem usa |
+|---|---|---|
+| **Base** (já feito) | Contrato ODCS, Studio de 4 etapas, `ingestion.yml`, orquestrador, transformação PySpark/Scala, monorepo | Uma tabela nova sai com pipeline gerada |
+| **M0 — Pronto para abrir** | Licença, exemplo que roda do início ao fim, pacote renomeado para `datapacto`, dependências de LLM como extras, guia de contribuição | Quem clona vê o fluxo funcionar em poucos minutos |
+| **M1 — Regras da empresa** | Rulebook em YAML; padrões atuais migrados para ele; comando `datapacto validate`; conferência do schema real contra o contrato a cada carga | Cada empresa usa o próprio padrão, sem mexer no código; mudança na origem não passa despercebida |
+| **M2 — Registro e versões** | Compilação do bundle completo; registro em S3/Git por ambiente; versionamento e detecção de quebra de compatibilidade; consumidores de cada contrato | Um lugar só com tudo de cada contrato e versão |
+| **M3 — Eventos de carga e SLA** | Evento padronizado gravado pelo orquestrador a cada carga; cálculo do atraso em relação ao SLA; mais regras de qualidade, executadas também na staging | Cada carga deixa um registro de linhas, duração, regras e SLA |
+| **M4 — Página de catálogo e saúde** | A visão própria como site estático gerado do registro (`datapacto docs`): catálogo, saúde e mudanças | Catálogo e monitoria funcionando sem nenhuma ferramenta externa |
+| **M5 — AWS** | Interface de publicador; Glue Data Catalog; CloudWatch (métricas, alarmes, dashboard); depois Lake Formation e SageMaker Catalog | O mesmo catálogo e monitoria dentro da AWS |
+| **M6 — Outras ferramentas e comunidade** | Datadog, Grafana, Quick Suite, notificações, Terraform; documentação de plugins, site; mais tarde GCP, Azure e linhagem | Funciona com as ferramentas que a empresa já tem; terceiros criam publicadores |
 
 ## 16. Decisões em aberto
 
 1. ~~Nome do projeto~~ **Decidido: datapacto** (antes `datapacto`).
 2. ~~Monorepo ou dois repositórios?~~ **Decidido: monorepo** (seção 14).
 3. **Registro**: S3, Git ou os dois? (recomendação: Git para autoria e revisão; S3 para o runtime ler).
-4. **Entrega dos publicadores**: API direta, Terraform ou os dois? (recomendação: API primeiro, Terraform na fase 5).
+4. **Entrega dos publicadores**: API direta, Terraform ou os dois? (recomendação: API no M5, Terraform no M6).
 5. ~~Primeiro destino de monitoria~~ **Decidido: visão própria no Studio, depois CloudWatch** (seção 9).
 6. ~~Primeiro destino de governança~~ **Decidido: catálogo próprio no Studio, depois Glue Data Catalog** (seção 9).
-7. **Extração de regras do PDF**: aceitar só com LLM configurado, ou oferecer também um modo manual guiado?
+7. **Extração de regras do PDF**: fica fora do roadmap por enquanto; o rulebook é escrito em YAML a partir de um
+   modelo (seção 7 descreve o fluxo completo, caso volte à fila).
 8. **Multi-tenant**: uma instalação atende vários domínios/times com rulebooks diferentes?
+9. **O que o contrato governa**: a tabela de origem, a raw ou a staging? Hoje ele descreve a origem e as regras de
+   qualidade rodam antes da raw, mas quem consome lê a staging. (recomendação: a staging; a origem entra como
+   mapeamento.)
+10. **Transformação: código gerado ou configuração?** A ingestão é um `ingestion.yml` lido por um motor; a
+    transformação é um projeto de código por tabela, com os utilitários copiados. (recomendação: configuração lida
+    por um motor, com o código gerado como opção de exportação.)
+11. **Visão própria: no Studio ou em site estático?** As decisões 5 e 6 definiram o Studio. (recomendação: começar
+    por um site estático gerado do registro, `datapacto docs`; as telas no Studio ficam para depois.)
+12. **Promessa da primeira versão pública**: a validação contra as regras da empresa serve a qualquer stack; a
+    pipeline gerada só serve a quem tem a arquitetura de referência. (recomendação: a validação é a promessa central.)
 
 ## 17. Riscos
 
@@ -369,4 +381,4 @@ Também ficam na fila os itens já citados antes: qualidade e SLA mais ricos (fa
 | APIs dos destinos mudam | Cada publicador é isolado e versionado; teste de contrato com a API em CI. |
 | Contrato vira burocracia | O Studio preenche quase tudo a partir da DDL/schema; o rulebook mostra o erro e como corrigir. |
 | Segredos vazarem | Contrato e `platform.yaml` só guardam referências (ARN); credenciais ficam no Secrets Manager. |
-| Escopo grande demais | Roadmap por fases, cada uma entregando valor sozinha; publicadores além de CloudWatch/Glue ficam para a comunidade. |
+| Escopo grande demais | Roadmap por marcos, cada um entregando valor sozinho; publicadores além de CloudWatch/Glue ficam para a comunidade. |

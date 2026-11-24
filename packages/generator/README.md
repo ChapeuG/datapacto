@@ -17,6 +17,6 @@ datapacto generate --contract actor.odcs.yaml  # ou pela linha de comando
 
 Passo a passo completo: **[docs/MANUAL.md](../../docs/MANUAL.md)**.
 
-O que cada etapa sabe fazer está nas **[skills do agente](src/framework/skills/README.md)** (`src/framework/skills/`,
+O que cada etapa sabe fazer está nas **[skills do agente](src/datapacto/skills/README.md)** (`src/datapacto/skills/`,
 um `SKILL.md` por skill; `datapacto skills` lista). Nomes de coluna com LLM usam o LiteLLM pela lib `openai`
-(`datapacto llm` testa a conexão).
+(extra `[llm]`; `datapacto llm` testa a conexão). Sem o extra, os nomes saem da heurística.

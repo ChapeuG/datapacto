@@ -11,13 +11,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from framework.agents.input_gen import input_gen_agent
-from framework.agents.naming import naming_agent
-from framework.agents.profiler import profiler_agent
-from framework.agents.transform_gen import transform_gen_agent
-from framework.cli import _initial_state
-from framework.ingestion_config import placeholders
-from framework.parsers.contract_parser import load_contract, resolve_table
+from datapacto.agents.input_gen import input_gen_agent
+from datapacto.agents.naming import naming_agent
+from datapacto.agents.profiler import profiler_agent
+from datapacto.agents.transform_gen import transform_gen_agent
+from datapacto.cli import _initial_state
+from datapacto.ingestion_config import placeholders
+from datapacto.parsers.contract_parser import load_contract, resolve_table
 
 CONTRACT = """
 apiVersion: v3.2.0

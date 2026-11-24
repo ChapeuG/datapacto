@@ -37,8 +37,19 @@ cd datapacto
 pip install -e "packages/generator[ui]"
 ```
 
-Pronto: o comando `datapacto` passa a funcionar em qualquer pasta. (`[ui]` instala a interface; sem ela, use
-`pip install -e .`.)
+Pronto: o comando `datapacto` passa a funcionar em qualquer pasta. Os extras são opcionais:
+
+| Extra | Instala |
+|---|---|
+| `[ui]` | A interface (Streamlit) |
+| `[llm]` | Nomes das colunas por LLM (seção 5) |
+| `[amostra]` | Amostra de dados (`--sample`) e arquivos `.parquet` ou CSV de dados como entrada |
+| `[all]` | Todos |
+
+Sem extras (`pip install -e packages/generator`), o gerador faz tudo com a heurística de nomes. Se um comando
+precisar de um extra que não está instalado, a mensagem diz qual instalar.
+
+Para ver o fluxo inteiro funcionando antes de usar os seus contratos, rode o [exemplo da loja](../examples/README.md).
 
 ---
 
@@ -207,7 +218,7 @@ datapacto generate --schema C:\caminho\vendas.avsc --dataset vendas
 datapacto contrato --schema C:\caminho\campos.xlsx --dataset vendas --source-db postgres
 ```
 Coluna de query sem `CAST` vira texto, com um aviso no comentário; `SELECT *` é recusado. As regras completas estão
-na skill [`leitura-de-schema`](src/framework/skills/leitura-de-schema/SKILL.md).
+na skill [`leitura-de-schema`](src/datapacto/skills/leitura-de-schema/SKILL.md).
 No modo contrato, o yml sai com `PREENCHER` onde faltar informação (servidor, secret, destino). Por isso, para a
 ingestão nova, prefira o contrato.
 
@@ -243,6 +254,8 @@ datapacto campos --ddl C:\caminho\da\tabela.sql --language scala -o Field.scala
 Sem LLM, os nomes saem de um glossário (heurística). Com LLM ficam melhores. O framework sempre confere o resultado
 contra o padrão de nomenclatura e, se o LLM falhar, volta para a heurística sozinho.
 
+Instale o extra antes: `pip install -e "packages/generator[llm]"`.
+
 - **LiteLLM:** a chamada é feita pela lib oficial `openai` (`OpenAI(base_url=..., api_key=...)`), já que o LiteLLM
   fala a API da OpenAI. A URL e a chave são lidas de `C:\Users\<matricula>\.claude\settings.json`, no bloco
   `env` (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_API_KEY`, ou `LITELLM_BASE_URL` + `LITELLM_API_KEY`)
@@ -258,7 +271,7 @@ contra o padrão de nomenclatura e, se o LLM falhar, volta para a heurística so
   ```
 - **Outros provedores:** `--llm-model openai:gpt-4o-mini`, `anthropic:...`, `bedrock:...` (com a chave do provedor).
 
-O prompt enviado ao LLM está na skill [`data-governance-names`](src/framework/skills/data-governance-names/SKILL.md). Para mudar as
+O prompt enviado ao LLM está na skill [`data-governance-names`](src/datapacto/skills/data-governance-names/SKILL.md). Para mudar as
 instruções, edite esse arquivo (veja a seção 9).
 
 No fim da execução, a nomenclatura mostra a fonte usada: `contrato`, `arquivo`, `llm` ou `heuristica`.
@@ -290,7 +303,8 @@ Com `--contract`, quase tudo vem do contrato. As opções servem para **sobrescr
 | `--append` | Acrescenta a tabela num projeto de transformação existente | — |
 | `--skip-input` | Gera só a transformação | — |
 | `--dry-run` | Mostra o que seria gerado, sem gravar | — |
-| `--github-org`, `--codecommit-transformation` | Repositórios do pipeline | `datalake-org`, `<dataset>-...` |
+| `--github-org` | Organização GitHub do remote `origin` e do `catalog-info.yaml` | sem remote |
+| `--codecommit-transformation` | Repositório CodeCommit para espelhar a transformação (gera o `pipeline.yml`) | sem espelho |
 
 Regras que o framework aplica sozinho:
 - **Criptografia:** as colunas marcadas são criptografadas (AES/ECB + base64) **antes** de gravar na raw. Na
@@ -327,28 +341,28 @@ python -m pytest tests -q
 
 | Pasta/arquivo | O que tem |
 |---|---|
-| `src/framework/cli.py` | Comandos `generate`, `contrato`, `campos`, `llm`, `skills` e `ui` |
-| `src/framework/skills/` | Skills do agente: um `SKILL.md` por etapa (seção 9) |
-| `src/framework/ui/` | Interface: `app.py` (tela) e `service.py` (lógica testável) |
-| `src/framework/graph.py` | Fluxo (LangGraph): profiler → nomenclatura → ingestão ∥ transformação → validação |
-| `src/framework/parsers/` | Leitura do contrato (`contract_parser.py`), do DDL, dos outros formatos de schema (`schema_reader.py`) e da amostra |
-| `src/framework/agents/` | Uma etapa por arquivo (`input_gen.py` gera o ingestion.yml) |
-| `src/framework/ingestion_config.py` | Formato do `ingestion.yml` |
-| `src/framework/llm.py` | Modelos de LLM (o LiteLLM pela lib `openai`) |
-| `src/framework/standards/` | Padrão de nomenclatura, glossário, tipagem e bancos de origem |
-| `src/framework/templates/` | Templates dos projetos gerados |
+| `src/datapacto/cli.py` | Comandos `generate`, `contrato`, `campos`, `llm`, `skills` e `ui` |
+| `src/datapacto/skills/` | Skills do agente: um `SKILL.md` por etapa (seção 9) |
+| `src/datapacto/ui/` | Interface: `app.py` (tela) e `service.py` (lógica testável) |
+| `src/datapacto/graph.py` | Fluxo: profiler → nomenclatura → ingestão → transformação → validação (sem laço de correção) |
+| `src/datapacto/parsers/` | Leitura do contrato (`contract_parser.py`), do DDL, dos outros formatos de schema (`schema_reader.py`) e da amostra |
+| `src/datapacto/agents/` | Uma etapa por arquivo (`input_gen.py` gera o ingestion.yml) |
+| `src/datapacto/ingestion_config.py` | Formato do `ingestion.yml` |
+| `src/datapacto/llm.py` | Modelos de LLM (o LiteLLM pela lib `openai`) |
+| `src/datapacto/standards/` | Padrão de nomenclatura, glossário, tipagem e bancos de origem |
+| `src/datapacto/templates/` | Templates dos projetos gerados |
 
 ---
 
 ## 9. Skills do agente
 
-As regras que o framework segue vêm das skills em **[`src/framework/skills/`](src/framework/skills/README.md)**:
+As regras que o framework segue vêm das skills em **[`src/datapacto/skills/`](src/datapacto/skills/README.md)**:
 um `SKILL.md` por skill (quando usar + regras), com `scripts/` que os templates espelham 1:1 e `references/` com os
 documentos de apoio. São 18: as 16 da biblioteca de transformação Spark + Delta (`sdd-specification`,
 `data-governance-names`, `data-transformation-patterns`, `project-structure`, `processor-orchestration`,
 `job-parameters`, `delta-write-patterns`, `hive-table-management`...) e duas do próprio datapacto
 (`leitura-de-schema` e `ingestao`). O índice, com onde cada uma é aplicada, está no
-[README da pasta](src/framework/skills/README.md).
+[README da pasta](src/datapacto/skills/README.md).
 
 - A **data-governance-names** é lida em tempo de execução: o prompt do LLM está no `SKILL.md` dela (seções
   `Prompt do sistema` e `Prompt do pedido`), e as regras *How to Decide the Prefix* e *Guardrails* entram no prompt.

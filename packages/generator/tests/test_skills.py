@@ -1,11 +1,11 @@
-"""Skills do agente: pasta src/framework/skills, um SKILL.md por skill."""
+"""Skills do agente: pasta src/datapacto/skills, um SKILL.md por skill."""
 
 from __future__ import annotations
 
 import re
 
-from framework.agents.naming import NAMING_PROMPT
-from framework.skills import SKILLS_DIR, USED_BY, list_skills, load_skill
+from datapacto.agents.naming import naming_prompt
+from datapacto.skills import SKILLS_DIR, USED_BY, list_skills, load_skill
 
 TEMPLATES = SKILLS_DIR.parent / "templates" / "transformation" / "scala" / "static"
 
@@ -29,7 +29,7 @@ def test_no_company_references():
 def test_naming_prompt_comes_from_governance_skill():
     skill = load_skill("data-governance-names")
     assert skill.reference("padrao_nomenclatura.txt").exists()
-    assert set(NAMING_PROMPT.input_variables) == {"reservados", "naturezas", "regras", "padroes", "source_table",
+    assert set(naming_prompt().input_variables) == {"reservados", "naturezas", "regras", "padroes", "source_table",
                                                   "dataset", "table_comment", "campos", "ja_definidos", "erros"}
     assert skill.section("Prompt do sistema").startswith("Você é especialista")
     assert "Use `dh` for date and time values." in skill.section("How to Decide the Prefix")

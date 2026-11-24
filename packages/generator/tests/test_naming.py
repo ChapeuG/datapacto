@@ -1,4 +1,4 @@
-"""Testes da padrão de nomenclatura: parser, tipagem, heurística, validação e subgrafo LangGraph.
+"""Testes da padrão de nomenclatura: parser, tipagem, heurística, validação e etapas da nomenclatura.
 
 Executa:
     python -m pytest tests/test_naming.py -v
@@ -10,13 +10,13 @@ import json
 
 from langchain_core.runnables import RunnableLambda
 
-from framework.agents import naming
-from framework.agents.naming import NamingProposal, naming_agent
-from framework.agents.transform_gen import render_field_block, transform_gen_agent
-from framework.parsers.ddl_parser import parse_ddl
-from framework.standards.glossary import propose_field
-from framework.standards.nomenclatura import load_padroes_text, validate_naming
-from framework.standards.tipagem import load_type_map
+from datapacto.agents import naming
+from datapacto.agents.naming import NamingProposal, naming_agent
+from datapacto.agents.transform_gen import render_field_block, transform_gen_agent
+from datapacto.parsers.ddl_parser import parse_ddl
+from datapacto.standards.glossary import propose_field
+from datapacto.standards.nomenclatura import load_padroes_text, validate_naming
+from datapacto.standards.tipagem import load_type_map
 
 DDL_ORGANIZACAO = """
 CREATE TABLE public.organizacao (
@@ -123,7 +123,7 @@ def test_padroes_text_is_loaded():
     assert "Aprovações\nTestemunhas" not in text
 
 
-# ── Subgrafo LangGraph com LLM falso ───────────────────────────────────
+# ── Nomenclatura com LLM falso ────────────────────────────────────────────
 
 class FakeChatModel:
     """Devolve respostas pré-definidas e registra os prompts recebidos."""

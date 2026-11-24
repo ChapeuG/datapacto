@@ -1,0 +1,64 @@
+{
+  "table": "cliente",
+  "source_table": "public.cliente",
+  "table_comment": "Clientes cadastrados na loja",
+  "merge_keys": [
+    "id"
+  ],
+  "fields": [
+    {
+      "raw_field": "id",
+      "staging_field": "id_cliente",
+      "data_type": "IntegerType",
+      "comment": "Identificador do cliente",
+      "encrypt": false,
+      "transformation": "default",
+      "source_format": ""
+    },
+    {
+      "raw_field": "name",
+      "staging_field": "nm_nome",
+      "data_type": "StringType",
+      "comment": "Nome completo do cliente",
+      "encrypt": false,
+      "transformation": "default",
+      "source_format": ""
+    },
+    {
+      "raw_field": "email",
+      "staging_field": "dc_email",
+      "data_type": "StringType",
+      "comment": "E-mail de contato do cliente",
+      "encrypt": false,
+      "transformation": "default",
+      "source_format": ""
+    },
+    {
+      "raw_field": "document",
+      "staging_field": "nu_documento",
+      "data_type": "StringType",
+      "comment": "CPF do cliente",
+      "encrypt": true,
+      "transformation": null,
+      "source_format": ""
+    },
+    {
+      "raw_field": "city",
+      "staging_field": "dc_cidade",
+      "data_type": "StringType",
+      "comment": "Cidade do cliente",
+      "encrypt": false,
+      "transformation": "default",
+      "source_format": ""
+    },
+    {
+      "raw_field": "created_at",
+      "staging_field": "dh_criacao",
+      "data_type": "TimestampType",
+      "comment": "Data e hora do cadastro",
+      "encrypt": false,
+      "transformation": "default",
+      "source_format": ""
+    }
+  ]
+}

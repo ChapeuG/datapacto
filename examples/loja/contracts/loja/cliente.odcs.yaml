@@ -1,0 +1,108 @@
+apiVersion: v3.2.0
+kind: DataContract
+id: 7077362c-132e-4c9d-98ca-d880215bc805
+name: loja-cliente
+version: 1.0.0
+status: draft
+domain: vendas
+dataProduct: loja
+description:
+  purpose: Cadastro de clientes da loja fictícia do exemplo
+  usage: Base para análises de vendas por cliente e cidade
+  limitations: O documento (CPF) é dado pessoal e chega criptografado na raw
+tags:
+- exemplo
+- loja
+team:
+  name: dados-vendas
+  description: Time fictício dono do exemplo
+  members:
+  - username: dono.exemplo
+    role: owner
+    dateIn: '2026-01-01'
+servers:
+- server: loja-demo
+  environment: demo
+  type: postgres
+  host: postgres
+  port: 5432
+  database: loja
+  schema: public
+  customProperties:
+  - property: secretId
+    value: env:DEMO_DB
+schema:
+- name: cliente
+  physicalName: public.cliente
+  physicalType: table
+  businessName: Cliente
+  description: Clientes cadastrados na loja
+  dataGranularityDescription: Uma linha por cliente
+  customProperties:
+  - property: loadMode
+    value: incremental
+  - property: incrementalColumns
+    value:
+    - created_at
+  - property: rawPartitionColumn
+    value: dt_ingestao
+  - property: cryptographySecretArn
+    value: env:DEMO_AES
+  properties:
+  - name: id
+    logicalType: integer
+    physicalType: INTEGER
+    description: Identificador do cliente
+    primaryKey: true
+    primaryKeyPosition: 1
+    required: true
+  - name: name
+    logicalType: string
+    physicalType: VARCHAR(120)
+    description: Nome completo do cliente
+    required: true
+  - name: email
+    logicalType: string
+    physicalType: VARCHAR(160)
+    description: E-mail de contato do cliente
+    required: true
+    quality:
+    - metric: nullValues
+      mustBe: 0
+      severity: error
+      description: Todo cliente tem e-mail
+  - name: document
+    logicalType: string
+    physicalType: VARCHAR(14)
+    description: CPF do cliente
+    required: true
+    classification: restricted
+    customProperties:
+    - property: encrypt
+      value: true
+  - name: city
+    logicalType: string
+    physicalType: VARCHAR(80)
+    description: Cidade do cliente
+  - name: created_at
+    logicalType: timestamp
+    physicalType: TIMESTAMP
+    description: Data e hora do cadastro
+    required: true
+    partitioned: true
+    partitionKeyPosition: 1
+  quality:
+  - metric: duplicateValues
+    mustBe: 0
+    severity: error
+    description: Sem duplicados na chave
+    arguments:
+      properties:
+      - id
+  - metric: rowCount
+    mustBeGreaterOrEqualTo: 1
+    severity: warning
+    description: Pelo menos 1 linha na carga
+customProperties:
+- property: transformationLanguage
+  value: pyspark

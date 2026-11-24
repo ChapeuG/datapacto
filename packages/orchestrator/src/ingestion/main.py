@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Bucket da raw (ex: s3://datalake-{env}-raw). Destino = <bucket>/<dataset>/<tabela>/. "
                         "Default: $DL_RAW_BUCKET. Obrigatório, exceto com --validate-only")
     p.add_argument("--validate-only", action="store_true", help="Só valida os yml (não abre Spark nem conexões)")
+    p.add_argument("--skip-catalog", action="store_true",
+                   help="Não cria nem atualiza a tabela no Glue/Athena (execução local, sem AWS)")
     return p
 
 
@@ -81,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
              .enableHiveSupport()
              .getOrCreate())
     params = RunParams(env=args.env, start_date=args.start_date, end_date=args.end_date,
-                       ingestion_type=args.ingestion_type)
+                       ingestion_type=args.ingestion_type, catalog=not args.skip_catalog)
 
     results = [run_table(spark, cfg, params) for cfg in configs]
     for r in results:

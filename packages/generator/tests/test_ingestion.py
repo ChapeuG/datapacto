@@ -11,12 +11,12 @@ import json
 import pytest
 import yaml
 
-from framework.agents.input_gen import input_gen_agent
-from framework.agents.naming import naming_agent
-from framework.agents.profiler import profiler_agent
-from framework.agents.transform_gen import transform_gen_agent
-from framework.parsers.ddl_parser import parse_ddl
-from framework.standards.tipagem import is_valid_spark_type, load_type_map
+from datapacto.agents.input_gen import input_gen_agent
+from datapacto.agents.naming import naming_agent
+from datapacto.agents.profiler import profiler_agent
+from datapacto.agents.transform_gen import transform_gen_agent
+from datapacto.parsers.ddl_parser import parse_ddl
+from datapacto.standards.tipagem import is_valid_spark_type, load_type_map
 
 DDL_CLIENTE = """
 CREATE TABLE public.cliente (
@@ -251,14 +251,21 @@ def test_merge_keys_persist_in_naming_file(tmp_path):
 def test_repo_files_of_transformation():
     transform = transform_gen_agent(_run(codecommit_transformation="vendas-transf", github_org="acme"))["transform_files"]
     pipeline = _file(transform, ".github/workflows/pipeline.yml")
-    assert pipeline.count("git push --mirror codecommit::us-east-2://vendas-transf") == 3
+    assert 'git push --mirror "codecommit::${{ vars.AWS_REGION }}://vendas-transf"' in pipeline
     assert "github.com/project-slug: acme/vendas-transformation" in _file(transform, "catalog-info.yaml")
     assert "__pycache__/" in _file(transform, ".gitignore")
 
 
+def test_repo_files_without_github_or_codecommit():
+    """Sem organização GitHub nem CodeCommit: nada de remote, de slug nem de pipeline de espelho."""
+    transform = transform_gen_agent(_run())["transform_files"]
+    assert not any(p.endswith(".github/workflows/pipeline.yml") for p in transform)
+    assert "github.com/project-slug" not in _file(transform, "catalog-info.yaml")
+
+
 def test_validator_writes_yml_and_project_with_git(tmp_path):
     import subprocess
-    from framework.agents import validator
+    from datapacto.agents import validator
 
     state = _run()
     state.update(input_gen_agent(state))
@@ -272,14 +279,14 @@ def test_validator_writes_yml_and_project_with_git(tmp_path):
     assert not (tmp_path / "ingestion-config" / ".git").exists()  # o yml não vira repositório
     project = tmp_path / "vendas-transformation"
     assert (project / "pyproject.toml").exists() and (project / "main.py").exists()
-    remote = subprocess.run(["git", "remote", "get-url", "origin"], cwd=project, capture_output=True, text=True)
-    assert remote.stdout.strip() == "https://github.com/datalake-org/vendas-transformation.git"
+    remote = subprocess.run(["git", "remote"], cwd=project, capture_output=True, text=True)
+    assert remote.stdout.strip() == ""  # sem --github-org, sem origin
     branch = subprocess.run(["git", "symbolic-ref", "--short", "HEAD"], cwd=project, capture_output=True, text=True)
     assert branch.stdout.strip() == "main"
 
 
 def test_dry_run_writes_nothing(tmp_path):
-    from framework.agents import validator
+    from datapacto.agents import validator
 
     state = _run()
     state.update(input_gen_agent(state))
@@ -361,7 +368,7 @@ def test_naming_file_overrides_transformation(tmp_path):
 
 
 def test_spark_types_become_pyspark_constructors():
-    from framework.agents.transform_gen import _package, _py_type
+    from datapacto.agents.transform_gen import _package, _py_type
     assert _py_type("StringType") == "StringType()"
     assert _py_type("DecimalType(18,0)") == "DecimalType(18, 0)"
     assert _py_type("MapType(StringType,ArrayType(IntegerType))") == "MapType(StringType(), ArrayType(IntegerType()))"
@@ -380,7 +387,7 @@ def test_append_registers_every_table_in_main():
 
 
 def test_validator_reports_python_syntax_errors(tmp_path):
-    from framework.agents import validator
+    from datapacto.agents import validator
 
     state = _run(merge_keys=["id"])
     files = transform_gen_agent(state)["transform_files"]
@@ -417,7 +424,7 @@ def test_scala_transformation_follows_skills_structure():
 
 
 def test_scala_encrypted_field_and_field_block():
-    from framework.agents.transform_gen import render_field_block
+    from datapacto.agents.transform_gen import render_field_block
     state = _run(encrypt_columns=["nu_cpf"], language="scala")
     model = _file(transform_gen_agent(state)["transform_files"], "ClienteModel.scala")
     line = next(line for line in model.splitlines() if 'FieldSpec("nu_cpf"' in line)
@@ -436,7 +443,7 @@ def test_default_language_is_pyspark_and_invalid_fails():
 
 
 def test_validator_scala_without_sbt_writes_without_compiling(tmp_path, monkeypatch):
-    from framework.agents import validator
+    from datapacto.agents import validator
 
     monkeypatch.setattr(validator.shutil, "which", lambda name: None)
     state = _run(merge_keys=["id"], language="scala")

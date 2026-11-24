@@ -16,8 +16,30 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e ".[ui]" pytest
+      - run: pip install -e ".[all]" pytest
       - run: python -m pytest tests -q
+
+  # Instalação básica (sem LLM, sem pandas): gera o exemplo e confere que ele está em dia com os templates
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install packages/generator
+      - name: Gerar o exemplo
+        run: |
+          datapacto generate --contract examples/loja/contracts/loja --output-dir examples/loja/saida \
+            --naming-dir examples/loja/saida/naming
+      - name: Exemplo em dia com os templates
+        run: |
+          if [ -n "$(git status --porcelain examples/)" ]; then
+            git status --porcelain examples/
+            git diff examples/ | head -200
+            echo "::error::examples/loja/saida mudou: gere o exemplo de novo e inclua a diferença no PR (CONTRIBUTING.md)"
+            exit 1
+          fi
 
   orchestrator:
     runs-on: ubuntu-latest
@@ -36,6 +58,24 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: python -m pytest -q
 
+  # Demonstração do examples/loja: Postgres com dados → orquestrador em Spark local → raw em disco
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rodar a ingestão do exemplo
+        run: docker compose -f examples/loja/demo/docker-compose.yml run --rm ingestao
+      - name: Conferir a raw
+        run: |
+          ls -R examples/loja/demo/raw
+          for t in cliente pedido; do
+            ls examples/loja/demo/raw/loja/$t/dt_ingestao=*/part-*.json.gz
+          done
+          # CPF criptografado: nenhum documento em claro na raw
+          ! zcat examples/loja/demo/raw/loja/cliente/dt_ingestao=*/part-*.json.gz | grep -q '"document":"111'
+      - if: always()
+        run: docker compose -f examples/loja/demo/docker-compose.yml down -v
+
   contracts:
     runs-on: ubuntu-latest
     steps:
@@ -44,8 +84,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install datacontract-cli
-      # O template tem <placeholders> de propósito: valida só os contratos reais
+      # O template tem <placeholders> de propósito: valida os contratos reais e os do exemplo
       - name: Lint dos data contracts
         run: |
-          find contracts -name '*.odcs.yaml' ! -name 'template.odcs.yaml' -print0 |
+          find contracts examples -name '*.odcs.yaml' ! -name 'template.odcs.yaml' -print0 |
             xargs -0 -r -n1 datacontract lint

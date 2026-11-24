@@ -6,10 +6,10 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from framework.cli import main
-from framework.parsers.contract_parser import check_relationships, load_contract
-from framework.parsers.ddl_parser import parse_ddl, parse_ddl_tables
-from framework.ui import service
+from datapacto.cli import main
+from datapacto.parsers.contract_parser import check_relationships, load_contract
+from datapacto.parsers.ddl_parser import parse_ddl, parse_ddl_tables
+from datapacto.ui import service
 
 DDL = """
 -- Tabela: actor

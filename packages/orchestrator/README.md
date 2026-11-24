@@ -54,7 +54,7 @@ O CI roda o lint em todo PR que mexe em `contracts/`.
 | No contrato | Efeito |
 |---|---|
 | `servers[]` (`environment`, `type`, `host`, `port`, `database`/`serviceName`) | Um servidor por ambiente; `type` escolhe o conector |
-| `servers[].customProperties.secretId` | Secret com `username`/`password` (e opcional `host`, `port`, `dbname`, `url`) |
+| `servers[].customProperties.secretId` | Secret com `username`/`password` (e opcional `host`, `port`, `dbname`, `url`). Id ou ARN do Secrets Manager; sem AWS, `env:NOME` (JSON na variável de ambiente) ou `file:caminho.json` |
 | `schema[].physicalName` | Tabela lida na origem |
 | `properties[]` | Colunas selecionadas (só as do contrato: o contrato é a fonte da verdade) |
 | `partitioned: true` | Filtro incremental do dia e coluna da leitura paralela |
@@ -113,6 +113,10 @@ spark-submit \
 | `--ingestion-type` | `normal` | `historical` filtra só pela coluna `partitioned` |
 | `--tables` | todas | Filtra por `tabela` ou `dataset.tabela` |
 | `--validate-only` | — | Só valida os yml, sem abrir o Spark |
+| `--skip-catalog` | — | Grava na raw sem criar a tabela no Glue/Athena (execução local, com `--raw-bucket file:///...`) |
+
+Para rodar sem AWS (demonstração, testes), combine `--raw-bucket file:///<pasta>`, `--skip-catalog` e secrets
+`env:` ou `file:`. O [exemplo da loja](../../examples/README.md) faz isso com Docker.
 
 Todos os yml são validados **antes** de qualquer carga. Uma tabela com erro não interrompe as outras, e o job sai
 com código 1 se alguma falhar.

@@ -1,0 +1,40 @@
+# Demonstração local: Postgres com dados → orquestrador (Spark local) → raw em ./raw
+#
+#   docker compose -f examples/loja/demo/docker-compose.yml run --rm ingestao
+#
+# Nada aqui usa AWS: as secrets vêm de variáveis de ambiente (secretId env:...) e a tabela não é
+# registrada no Glue/Athena (--skip-catalog).
+services:
+  postgres:
+    image: postgres:16.4
+    environment:
+      POSTGRES_DB: loja
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d loja"]
+      interval: 2s
+      retries: 30
+
+  ingestao:
+    build:
+      context: ../../..
+      dockerfile: examples/loja/demo/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # secretId: env:DEMO_DB nos contratos
+      DEMO_DB: '{"username": "demo", "password": "demo"}'
+      # cryptographySecretArn: env:DEMO_AES (chave AES de 16 bytes em base64, só para a demonstração)
+      DEMO_AES: '{"AES_KEY": "Y2hhdmUtZGVtby0xNmJ5dA=="}'
+      # Driver JDBC do Postgres, baixado do Maven na primeira execução
+      PYSPARK_SUBMIT_ARGS: --packages org.postgresql:postgresql:42.7.4 pyspark-shell
+    volumes:
+      - ../saida/ingestion-config:/config:ro
+      - ./raw:/data/raw
+    command: >
+      datapacto-ingest --config /config --env demo
+      --raw-bucket file:///data/raw --skip-catalog

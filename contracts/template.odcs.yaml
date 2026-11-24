@@ -173,9 +173,9 @@ slaProperties:
 
 # ── Extensões próprias do contrato ─────────────────────────────────────────────────────────
 customProperties:
-  - property: githubOrg                # [EXT] default datalake-org
-    value: datalake-org
-  - property: codecommitTransformation # [EXT] default <dataset>-transformation
+  - property: githubOrg                # [EXT] opcional: remote origin do projeto de transformação
+    value: <organizacao-github>
+  - property: codecommitTransformation # [EXT] opcional: espelho no CodeCommit (gera o pipeline.yml)
     value: <dataset>-transformation
 
 contractCreatedTs: "2026-01-01T00:00:00+00:00"

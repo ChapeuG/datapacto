@@ -6,10 +6,10 @@ Executa:
 
 from __future__ import annotations
 
-from framework.parsers.ddl_parser import parse_ddl
-from framework.agents.profiler import profiler_agent
-from framework.agents.input_gen import input_gen_agent
-from framework.agents.transform_gen import transform_gen_agent
+from datapacto.parsers.ddl_parser import parse_ddl
+from datapacto.agents.profiler import profiler_agent
+from datapacto.agents.input_gen import input_gen_agent
+from datapacto.agents.transform_gen import transform_gen_agent
 
 
 DDL_ORGANIZACAO = """
@@ -67,8 +67,6 @@ def test_profiler_agent():
         "compile_errors": [],
         "input_compiled": False,
         "transform_compiled": False,
-        "iterations": 0,
-        "max_iterations": 5,
         "skip_input": False,
         "status": "profiling",
         "error_message": "",
@@ -98,8 +96,6 @@ def test_input_gen_agent():
         "compile_errors": [],
         "input_compiled": False,
         "transform_compiled": False,
-        "iterations": 0,
-        "max_iterations": 5,
         "skip_input": False,
         "status": "profiling",
         "error_message": "",
@@ -131,8 +127,6 @@ def test_transform_gen_agent():
         "compile_errors": [],
         "input_compiled": False,
         "transform_compiled": False,
-        "iterations": 0,
-        "max_iterations": 5,
         "skip_input": False,
         "status": "profiling",
         "error_message": "",

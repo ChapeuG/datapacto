@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import BaseModel
 
-from framework.llm import (CLAUDE_SETTINGS_ENV, LiteLLMChat, check_model, get_chat_model, load_litellm_config, ping,
+from datapacto.llm import (CLAUDE_SETTINGS_ENV, LiteLLMChat, check_model, get_chat_model, load_litellm_config, ping,
                            resolve_model_name)
 
 
@@ -113,7 +113,7 @@ def test_structured_output_from_json_text_and_ping(tmp_path, monkeypatch):
     assert model.with_structured_output(_Out).invoke("oi") == _Out(nome="nm_x")
 
     model, completions = _fake_model(SimpleNamespace(tool_calls=None, content=" ok "))
-    monkeypatch.setattr("framework.llm.get_chat_model", lambda name: model)
+    monkeypatch.setattr("datapacto.llm.get_chat_model", lambda name: model)
     assert ping("litellm:claude-x") == "ok"
     assert completions.calls[0]["messages"][0]["role"] == "user"
     with pytest.raises(RuntimeError, match="Sem modelo"):

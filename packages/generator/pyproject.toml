@@ -2,17 +2,12 @@
 name = "datapacto"
 version = "0.1.0"
 description = "Gera o ingestion.yml e o projeto PySpark de transformação a partir de um data contract (ODCS) ou DDL"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
+# Instalação básica: contrato, ingestion.yml e transformação, sem LLM
 dependencies = [
-    "langchain>=0.3.0",
-    "langchain-core>=0.3.0",
-    "langchain-openai>=0.2.0",
-    "openai>=1.40.0",
-    "langgraph>=0.2.0",
     "pydantic>=2.0.0",
     "jinja2>=3.1.0",
-    "pandas>=2.0.0",
-    "pyarrow>=15.0.0",
     "openpyxl>=3.1.0",
     "click>=8.1.0",
     "pyyaml>=6.0",
@@ -20,13 +15,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-anthropic = ["langchain-anthropic>=0.3.0"]
-aws = ["langchain-aws>=0.2.0"]
-ui = ["streamlit>=1.40"]
+# Nomenclatura por LLM (LiteLLM pela lib openai, ou qualquer provedor do LangChain)
+llm = [
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "openai>=1.40.0",
+]
+anthropic = ["datapacto[llm]", "langchain-anthropic>=0.3.0"]
+aws = ["datapacto[llm]", "langchain-aws>=0.2.0"]
+# Amostra (--sample) e arquivos de dados como entrada (.parquet, CSV de dados, registros JSON)
+amostra = ["pandas>=2.0.0", "pyarrow>=15.0.0"]
+ui = ["streamlit>=1.40", "datapacto[amostra]"]
+all = ["datapacto[llm,amostra,ui]"]
 
 [project.scripts]
-datapacto = "framework.cli:main"
-dl-gen = "framework.cli:main"  # nome antigo, mantido por compatibilidade
+datapacto = "datapacto.cli:main"
+dl-gen = "datapacto.cli:main"  # nome antigo, mantido por compatibilidade
 
 [build-system]
 requires = ["setuptools>=68.0"]
@@ -36,4 +41,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-framework = ["templates/**/*.j2", "templates/**/*.tpl", "templates/**/*.py", "templates/**/*.scala", "skills/**/*.md", "skills/**/*.txt", "skills/**/*.csv", "skills/**/*.scala"]
+datapacto = ["templates/**/*.j2", "templates/**/*.tpl", "templates/**/*.py", "templates/**/*.scala", "skills/**/*.md", "skills/**/*.txt", "skills/**/*.csv", "skills/**/*.scala"]

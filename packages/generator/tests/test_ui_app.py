@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
-APP = str(Path(__file__).resolve().parents[1] / "src" / "framework" / "ui" / "app.py")
+APP = str(Path(__file__).resolve().parents[1] / "src" / "datapacto" / "ui" / "app.py")
 
 DDL = """CREATE TABLE public.cliente (
   id INTEGER PRIMARY KEY,

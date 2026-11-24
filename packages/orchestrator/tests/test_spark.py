@@ -116,3 +116,25 @@ def test_run_table_end_to_end(spark, tmp_path, monkeypatch):
     assert row.nu_cpf != "12345678901" and row.nm_cliente == "Ana"
     assert {"@timestamp", "@version"}.isdisjoint(written.columns)  # vêm da query JDBC real, não do fake
     assert tables and sorted(tables[0][1]) == ["20261005", "20261006"]
+
+
+@pytest.mark.skipif(sys.platform == "win32" and not os.environ.get("HADOOP_HOME"),
+                    reason="escrita local do Spark no Windows exige winutils (HADOOP_HOME); roda no CI Linux")
+def test_run_table_skip_catalog(spark, tmp_path, monkeypatch):
+    """--skip-catalog: grava na raw local e não toca no Glue/Athena."""
+    import yaml
+
+    from ingestion import pipeline
+
+    cfg = parse_config(yaml.safe_dump(yaml.safe_load(CLIENTE)), "prd", raw_bucket=(tmp_path / "raw").as_uri())
+    source = spark.sql("SELECT 1 AS cd_cliente, '12345678901' AS nu_cpf, 'Ana' AS nm_cliente, "
+                       "TIMESTAMP'2026-10-05 10:00:00' AS dh_incl_rgst, TIMESTAMP'2026-10-05 11:00:00' AS dh_atlz_rgst")
+    monkeypatch.setattr(pipeline, "read_source", lambda *a: source)
+    monkeypatch.setattr(pipeline, "get_secret", lambda _id: {"username": "u", "password": "p"})
+    monkeypatch.setattr(pipeline, "get_secret_field", lambda _arn, _field: KEY)
+    monkeypatch.setattr(pipeline.catalog, "ensure_table", lambda *a: pytest.fail("não deveria registrar no catálogo"))
+
+    params = pipeline.RunParams(env="prd", start_date="2026-10-05", catalog=False)
+    result = pipeline.run_table(spark, cfg, params)
+    assert result.ok, result.error
+    assert list((tmp_path / "raw" / "cartoes" / "cliente").glob("dt_ingestao=*/*.json.gz"))

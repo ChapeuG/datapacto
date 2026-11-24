@@ -9,9 +9,9 @@ import pytest
 from click.testing import CliRunner
 from openpyxl import Workbook
 
-from framework.parsers.ddl_parser import parse_ddl_tables
-from framework.parsers.schema_reader import NO_TYPE_COMMENT, detect_format, read_schema
-from framework.ui import service
+from datapacto.parsers.ddl_parser import parse_ddl_tables
+from datapacto.parsers.schema_reader import NO_TYPE_COMMENT, detect_format, read_schema
+from datapacto.ui import service
 
 
 def _fields(source, filename: str = "", table: str = "") -> dict:
@@ -137,7 +137,7 @@ def test_service_and_cli_accept_any_format(tmp_path):
     assert (form["table"], form["physicalName"]) == ("cliente", "loja.cliente")
     assert [(r["name"], r["logicalType"]) for r in rows] == [("id", "integer"), ("criado_em", "timestamp")]
 
-    from framework.cli import main
+    from datapacto.cli import main
 
     path = tmp_path / "cliente.sql"
     path.write_text(query, encoding="utf-8")

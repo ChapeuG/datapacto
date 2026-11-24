@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from framework.llm import _API_KEY_KEYS, _BASE_URL_KEYS, _MODEL_KEYS, CLAUDE_SETTINGS_ENV, DEFAULT_MODEL_ENV
+from datapacto.llm import _API_KEY_KEYS, _BASE_URL_KEYS, _MODEL_KEYS, CLAUDE_SETTINGS_ENV, DEFAULT_MODEL_ENV
 
 
 @pytest.fixture(autouse=True)
